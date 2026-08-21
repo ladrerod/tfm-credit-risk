@@ -1,0 +1,13 @@
+{
+  "dataset_repository_env": "FANNIE_DATASET_REPO",
+  "dataset_directory_env": "FANNIE_DATASET_DIR",
+  "dataset_revision": "main",
+  "manifest": "manifest.json",
+  "cache_directory": "data/cache",
+  "chunk_rows": 100000,
+  "loan_source": "Fannie Mae Single-Family Loan Performance Data",
+  "macro_sources": {
+    "unemployment": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "house_prices": "https://www.fhfa.gov/document/hpi_master.csv"
+  }
+}

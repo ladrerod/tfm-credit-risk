@@ -1,0 +1,13 @@
+{
+  "seed": 20260819,
+  "target_horizon_months": 24,
+  "event_definition": "90+ days delinquent, foreclosure or equivalent",
+  "development_years": [2015, 2016, 2017, 2018],
+  "calibration_year": 2019,
+  "validation_year": 2020,
+  "test_years": [2021, 2022],
+  "maximum_rows_per_cohort": 250000,
+  "test_maximum_rows": 500000,
+  "lgd_lower_bound": 0.0,
+  "lgd_upper_bound": 2.0
+}

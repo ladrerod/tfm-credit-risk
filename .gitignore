@@ -1,0 +1,16 @@
+.env
+.env.*
+.private/
+.venv/
+__pycache__/
+*.py[cod]
+data/
+outputs/
+models/
+*.csv
+*.zst
+*.parquet
+*.zip
+*.joblib
+*.pdf
+*.tex

@@ -1,0 +1,8 @@
+{
+  "psi_warning": 0.10,
+  "psi_critical": 0.25,
+  "auc_drop_warning": 0.03,
+  "auc_drop_critical": 0.07,
+  "brier_increase_warning": 0.01,
+  "brier_increase_critical": 0.03
+}
