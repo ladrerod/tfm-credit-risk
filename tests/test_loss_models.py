@@ -58,6 +58,41 @@ class LossModelTests(unittest.TestCase):
         self.assertIn(result["lgd"]["selected_name"], {"segment_mean", "direct_huber", "hurdle"})
         self.assertIsInstance(result["decision_grade"], bool)
 
+    def test_ead_and_lgd_can_use_different_maturity_populations(self) -> None:
+        ead_development = self._sample(5, 2000).drop(columns="lgd")
+        ead_validation = self._sample(6, 1000).drop(columns="lgd")
+        lgd_development = self._sample(7, 1800).drop(columns="ead_ratio")
+        lgd_validation = self._sample(8, 900).drop(columns="ead_ratio")
+
+        result = train_loss_models(
+            ead_development,
+            ead_validation,
+            lgd_development=lgd_development,
+            lgd_validation=lgd_validation,
+            numeric=["original_cltv", "credit_score"],
+            categorical=["occupancy"],
+            seed=42,
+        )
+
+        self.assertEqual(1000, result["ead"]["metrics"][result["ead"]["selected_name"]]["n"])
+        self.assertEqual(900, result["lgd"]["metrics"][result["lgd"]["selected_name"]]["n"])
+
+    def test_selection_omits_hurdle_when_all_losses_are_positive(self) -> None:
+        development = self._sample(9, 1000)
+        validation = self._sample(10, 500)
+        development["lgd"] = development["lgd"].clip(lower=0.1)
+        validation["lgd"] = validation["lgd"].clip(lower=0.1)
+
+        result = train_loss_models(
+            development,
+            validation,
+            numeric=["original_cltv", "credit_score"],
+            categorical=["occupancy"],
+            seed=42,
+        )
+
+        self.assertNotIn("hurdle", result["lgd"]["metrics"])
+
 
 if __name__ == "__main__":
     unittest.main()

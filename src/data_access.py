@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import re
-from collections.abc import Iterator, Mapping
+import tempfile
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -78,47 +78,35 @@ def read_csv_zst(
                     yield frame
 
 
-def fetch_dataset(
-    repo_id: str,
-    cache_dir: str | Path,
-    *,
-    revision: str = "main",
-    manifest_name: str = "manifest.json",
-    token: str | None = None,
-) -> tuple[dict[str, Any], list[Path]]:
-    if not repo_id or "/" not in repo_id:
-        raise ValueError("dataset repository must use namespace/name")
+def write_csv_zst_parts(frames: Iterable[pd.DataFrame], path: str | Path, *, level: int = 19) -> None:
+    if level <= 0:
+        raise ValueError("compression level must be positive")
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
     try:
-        from huggingface_hub import hf_hub_download
-    except ImportError as error:
-        raise RuntimeError("install the locked dependencies before downloading data") from error
-    credential = token or os.environ.get("HF_TOKEN")
-    if not credential:
-        raise RuntimeError("a short-lived or repository-scoped dataset credential is required")
-    local = Path(cache_dir)
-    manifest_path = Path(
-        hf_hub_download(
-            repo_id=repo_id,
-            repo_type="dataset",
-            filename=manifest_name,
-            revision=revision,
-            token=credential,
-            local_dir=local,
-        )
-    )
-    manifest = load_manifest(manifest_path)
-    paths = []
-    for item in manifest["files"]:
-        path = Path(
-            hf_hub_download(
-                repo_id=repo_id,
-                repo_type="dataset",
-                filename=item["name"],
-                revision=revision,
-                token=credential,
-                local_dir=local,
-            )
-        )
-        verify_file(path, item)
-        paths.append(path)
-    return manifest, paths
+        with tempfile.NamedTemporaryFile(dir=target.parent, suffix=".tmp", delete=False) as raw:
+            temporary = Path(raw.name)
+            with zstd.ZstdCompressor(level=level).stream_writer(raw, closefd=False) as compressed:
+                with io.TextIOWrapper(compressed, encoding="utf-8", newline="") as text:
+                    columns: list[str] | None = None
+                    wrote_rows = False
+                    for frame in frames:
+                        if frame.empty:
+                            continue
+                        if columns is None:
+                            columns = list(frame.columns)
+                        elif list(frame.columns) != columns:
+                            raise ValueError("all compressed CSV parts must have the same schema")
+                        frame.to_csv(text, index=False, header=not wrote_rows)
+                        wrote_rows = True
+                    if not wrote_rows:
+                        raise ValueError("compressed CSV requires at least one row")
+        temporary.replace(target)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def write_csv_zst(frame: pd.DataFrame, path: str | Path, *, level: int = 19) -> None:
+    write_csv_zst_parts([frame], path, level=level)

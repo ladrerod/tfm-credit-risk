@@ -10,9 +10,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .data_access import fetch_dataset, load_manifest, read_csv_zst, verify_file
+os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(max(1, (os.cpu_count() or 1) - 1)))
+
+from .data_access import load_manifest, read_csv_zst, verify_file
 from .data_quality import summarize_eda, validate_frame
 from .expected_loss import summarize_expected_loss
+from .freddie_data import prepare_dataset
 from .governance import audit_numeric_associations, global_importance, representative_sensitivity
 from .integrity import file_sha256, write_json_atomic
 from .loss_models import regression_metrics, train_loss_models
@@ -46,6 +49,48 @@ CATEGORICAL_FEATURES = (
     "high_balance_loan",
 )
 MACRO_FEATURES = ("unemployment_3m", "unemployment_change_12m", "hpi_yoy")
+PRIVATE_DTYPES = {
+    "origination_date": "string",
+    "performance_end_date": "string",
+    "default_event_date": "string",
+    "zero_balance_date": "string",
+    "cohort_year": "int16",
+    "default_24m": "int8",
+    "original_upb": "float64",
+    "ead_ratio": "float32",
+    "lgd": "float32",
+    "lgd_eligible": "boolean",
+    **{name: "float32" for name in NUMERIC_FEATURES if name != "original_upb"},
+    **{name: "float32" for name in MACRO_FEATURES},
+    **{name: "string" for name in CATEGORICAL_FEATURES},
+}
+INTERNAL_BANK_DATA_GAPS = [
+    {
+        "domain": "Admisión y decisión",
+        "fields": "solicitud, decisión, motivo de denegación, versión de política, excepción manual y autoridad aprobadora",
+        "impact": "la cartera adquirida no permite identificar rechazados ni estimar el efecto de la aprobación",
+    },
+    {
+        "domain": "Capacidad del prestatario",
+        "fields": "ingreso verificado, empleo, activos, pasivos, detalle de bureau y comportamiento interno",
+        "impact": "la PD queda limitada a los atributos de originación publicados por Freddie Mac",
+    },
+    {
+        "domain": "Colateral, pricing y rentabilidad",
+        "fields": "tasación actual, cargas, primas, comisiones, coste de financiación, consumo de capital y margen",
+        "impact": "las políticas comparan pérdida crediticia, pero no optimizan rentabilidad ajustada a riesgo",
+    },
+    {
+        "domain": "Servicing y recuperación",
+        "fields": "pagos, curas, modificaciones, gestiones de cobro, fechas judiciales, recobros, gastos y write-offs",
+        "impact": "los flujos publicados permiten una LGD académica, pero no una reconciliación contable bancaria",
+    },
+    {
+        "domain": "Gobierno y etiquetas",
+        "fields": "definiciones aprobadas, linaje, fechas as-of, cambios de política, labels recientes maduros y validación",
+        "impact": "el estudio no puede productivizarse sin validación independiente e historia controlada",
+    },
+]
 
 
 def _config(name: str) -> dict[str, object]:
@@ -121,52 +166,60 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
 
 
 def _private_data(data_config: dict[str, object]) -> tuple[pd.DataFrame, dict[str, object]]:
-    local_value = os.environ.get(str(data_config["dataset_directory_env"]), "")
-    repo_id = os.environ.get(str(data_config["dataset_repository_env"]), "")
-    if local_value:
-        local = Path(local_value)
-        manifest_path = local / str(data_config["manifest"])
-        manifest = load_manifest(manifest_path)
-        paths = [local / item["name"] for item in manifest["files"]]
-        for item, path in zip(manifest["files"], paths):
-            verify_file(path, item)
-        source = "local_private_dataset"
-    else:
-        local = ROOT / str(data_config["cache_directory"])
-        manifest, paths = fetch_dataset(
-            repo_id,
-            local,
-            revision=str(data_config["dataset_revision"]),
-            manifest_name=str(data_config["manifest"]),
+    configured = os.environ.get(str(data_config["analysis_file_env"]), "")
+    analysis_path = Path(configured) if configured else ROOT / str(data_config["analysis_file"])
+    manifest_path = analysis_path.with_name("manifest.json") if configured else ROOT / str(data_config["manifest"])
+    if not analysis_path.is_file():
+        raw_root = os.environ.get(str(data_config["dataset_directory_env"]), "")
+        if not raw_root:
+            raise FileNotFoundError(
+                f"missing {analysis_path}; set {data_config['dataset_directory_env']} to prepare it"
+            )
+        prepare_dataset(
+            raw_root,
+            analysis_path,
+            manifest_path,
+            years=[int(value) for value in data_config["years"]],
+            quarters=[int(value) for value in data_config["quarters"]],
+            sample_size=int(data_config["maximum_rows_per_quarter"]),
+            seed=int(_config("model.json")["seed"]),
+            compression_level=int(data_config["compression_level"]),
+            macro_sources=data_config.get("macro_sources"),
+            macro_cache=ROOT / str(data_config["macro_cache"]),
         )
-        manifest_path = local / str(data_config["manifest"])
-        source = "private_dataset"
+    manifest = load_manifest(manifest_path)
+    if len(manifest["files"]) != 1 or manifest["files"][0]["name"] != analysis_path.name:
+        raise ValueError("Freddie manifest must describe the configured analysis file")
+    item = manifest["files"][0]
+    verify_file(analysis_path, item)
     frames = []
-    for item, path in zip(manifest["files"], paths):
-        for chunk in read_csv_zst(
-            path,
-            columns=item["columns"],
-            chunksize=int(data_config["chunk_rows"]),
-            dtypes=item.get("dtypes"),
-        ):
-            if "analysis_sample" not in chunk:
-                raise ValueError("private data must declare the deterministic analysis sample")
-            eligible = chunk["analysis_sample"].astype(bool)
-            if {"population_eligible", "eligible"}.issubset(chunk):
-                eligible &= chunk["population_eligible"].astype(bool) & chunk["eligible"].astype(bool)
-            selected = chunk.loc[eligible].drop(columns="analysis_sample")
-            if len(selected):
-                frames.append(selected)
+    dtypes = {name: dtype for name, dtype in PRIVATE_DTYPES.items() if name in item["columns"]}
+    for chunk in read_csv_zst(
+        analysis_path,
+        columns=item["columns"],
+        chunksize=int(data_config["chunk_rows"]),
+        dtypes=item.get("dtypes", dtypes),
+    ):
+        frames.append(chunk)
     if not frames:
-        raise ValueError("private data contains no analysis sample rows")
-    return pd.concat(frames, ignore_index=True), {
-        "source": source,
-        "repository": repo_id,
-        "revision": str(data_config["dataset_revision"]),
-        "files": len(paths),
+        raise ValueError("Freddie analysis file contains no rows")
+    frame = pd.concat(frames, ignore_index=True)
+    for column in CATEGORICAL_FEATURES:
+        if column in frame:
+            frame[column] = frame[column].astype("category")
+    return frame, {
+        "source": "restricted_freddie_dataset",
+        "files": len(manifest.get("source_files", [])),
         "manifest_sha256": file_sha256(manifest_path),
-        "population_rows": int(manifest.get("population_rows", sum(item["rows"] for item in manifest["files"]))),
-        "eligible_rows": int(manifest.get("eligible_rows", 0)),
+        "analysis_sha256": item["sha256"],
+        "analysis_bytes": item["bytes"],
+        "population_rows": int(manifest.get("population_rows", item["rows"])),
+        "eligible_rows": int(manifest.get("eligible_rows", item["rows"])),
+        "seed": manifest.get("seed"),
+        "years": manifest.get("years", []),
+        "quarters": manifest.get("quarters", []),
+        "maximum_rows_per_quarter": manifest.get("maximum_rows_per_quarter"),
+        "macro_sources": manifest.get("macro_sources", []),
     }
 
 
@@ -204,20 +257,38 @@ def _implementation_sha256() -> str:
     return digest.hexdigest()
 
 
-def _public_loss_result(result: dict[str, object], test: pd.DataFrame, features: list[str]) -> tuple[dict[str, object], np.ndarray, np.ndarray]:
+def _public_loss_result(
+    result: dict[str, object],
+    ead_test: pd.DataFrame,
+    lgd_test: pd.DataFrame,
+    features: list[str],
+    *,
+    minimum_evaluation_rows: int,
+) -> dict[str, object]:
     ead_model = result["ead"]["selected_model"]
     lgd_model = result["lgd"]["selected_model"]
-    ead_prediction = np.clip(ead_model.predict(test[features]), 0.0, 1.5)
-    lgd_prediction = np.clip(lgd_model.predict(test[features]), 0.0, 2.0)
-    ead_test_metrics = regression_metrics(test["ead_ratio"], ead_prediction)
-    lgd_test_metrics = regression_metrics(test["lgd"], lgd_prediction)
+    ead_prediction = np.clip(ead_model.predict(ead_test[features]), 0.0, 1.5)
+    lgd_prediction = np.clip(lgd_model.predict(lgd_test[features]), 0.0, 2.0)
+    ead_test_metrics = regression_metrics(ead_test["ead_ratio"], ead_prediction)
+    lgd_test_metrics = regression_metrics(lgd_test["lgd"], lgd_prediction)
+    ead_validation_rows = int(result["ead"]["metrics"][result["ead"]["selected_name"]]["n"])
+    lgd_validation_rows = int(result["lgd"]["metrics"][result["lgd"]["selected_name"]]["n"])
+    sample_adequacy = {
+        "minimum_evaluation_rows": minimum_evaluation_rows,
+        "ead_validation_rows": ead_validation_rows,
+        "ead_test_rows": int(ead_test_metrics["n"]),
+        "lgd_validation_rows": lgd_validation_rows,
+        "lgd_test_rows": int(lgd_test_metrics["n"]),
+    }
     decision_grade = bool(
         result["decision_grade"]
         and ead_test_metrics["portfolio_relative_error"] <= 0.15
         and lgd_test_metrics["portfolio_relative_error"] <= 0.50
+        and min(sample_adequacy.values()) >= minimum_evaluation_rows
     )
     payload = {
         "decision_grade": decision_grade,
+        "sample_adequacy": sample_adequacy,
         "ead": {
             "selected_name": result["ead"]["selected_name"],
             "validation_metrics": result["ead"]["metrics"],
@@ -229,7 +300,7 @@ def _public_loss_result(result: dict[str, object], test: pd.DataFrame, features:
             "test_metrics": lgd_test_metrics,
         },
     }
-    return payload, ead_prediction, lgd_prediction
+    return payload
 
 
 def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/study-results.json") -> dict[str, object]:
@@ -253,12 +324,19 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         required=(*NUMERIC_FEATURES, *CATEGORICAL_FEATURES, *MACRO_FEATURES, "default_24m", "ead_ratio", "lgd"),
         ranges={
             "origination_fico": (300, 850),
-            "original_ltv": (0, 200),
-            "original_cltv": (0, 250),
-            "original_dti": (0, 100),
-            "ead_ratio": (0, 1.5),
+            "original_ltv": (0, 998),
+            "original_cltv": (0, 998),
+            "original_dti": (0, 65),
         },
     )
+    raw_ead = pd.to_numeric(frame["ead_ratio"], errors="coerce")
+    ead_tail = {
+        "observed_rows": int(raw_ead.notna().sum()),
+        "below_zero": int((raw_ead < 0).sum()),
+        "above_one_point_five": int((raw_ead > 1.5).sum()),
+        "minimum": float(raw_ead.min()),
+        "maximum": float(raw_ead.max()),
+    }
     raw_lgd = pd.to_numeric(frame["lgd"], errors="coerce")
     lgd_tail = {
         "observed_rows": int(raw_lgd.notna().sum()),
@@ -267,7 +345,9 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         "minimum": float(raw_lgd.min()),
         "maximum": float(raw_lgd.max()),
     }
-    frame["lgd"] = raw_lgd.clip(0.0, 2.0)
+    frame["lgd"] = raw_lgd.clip(
+        float(model_config["lgd_lower_bound"]), float(model_config["lgd_upper_bound"])
+    )
     development = frame.loc[frame["cohort_year"].isin(model_config["development_years"])].copy()
     calibration = frame.loc[frame["cohort_year"] == int(model_config["calibration_year"])].copy()
     validation = frame.loc[frame["cohort_year"] == int(model_config["validation_year"])].copy()
@@ -286,27 +366,45 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         and macro_validation["log_loss"] < base_validation["log_loss"]
         and (macro_validation["roc_auc"] or 0) >= (base_validation["roc_auc"] or 0)
     )
-    loss_eligible = frame["default_24m"].eq(1) & frame["ead_ratio"].notna() & frame["lgd"].notna()
+    ead_eligible = frame["default_24m"].eq(1) & frame["ead_ratio"].notna()
+    lgd_eligible = frame["default_24m"].eq(1) & frame["lgd"].notna()
     if "lgd_eligible" in frame:
-        loss_eligible &= frame["lgd_eligible"].astype(bool)
-    loss_development = frame.loc[
-        loss_eligible & frame["cohort_year"].isin([2015, 2016, 2017, 2018, 2019])
+        lgd_eligible &= frame["lgd_eligible"].astype(bool)
+    ead_development = frame.loc[
+        ead_eligible & frame["cohort_year"].isin(model_config["ead_development_years"])
     ].copy()
-    loss_validation = frame.loc[
-        loss_eligible & frame["cohort_year"].eq(int(model_config["validation_year"]))
+    ead_validation = frame.loc[
+        ead_eligible & frame["cohort_year"].eq(int(model_config["ead_validation_year"]))
     ].copy()
-    loss_test = frame.loc[
-        loss_eligible & frame["cohort_year"].isin(model_config["test_years"])
+    ead_test = frame.loc[
+        ead_eligible & frame["cohort_year"].isin(model_config["ead_test_years"])
+    ].copy()
+    lgd_development = frame.loc[
+        lgd_eligible & frame["cohort_year"].isin(model_config["lgd_development_years"])
+    ].copy()
+    lgd_validation = frame.loc[
+        lgd_eligible & frame["cohort_year"].eq(int(model_config["lgd_validation_year"]))
+    ].copy()
+    lgd_test = frame.loc[
+        lgd_eligible & frame["cohort_year"].isin(model_config["lgd_test_years"])
     ].copy()
     loss_features = list(NUMERIC_FEATURES + CATEGORICAL_FEATURES)
     fitted_loss = train_loss_models(
-        loss_development,
-        loss_validation,
+        ead_development,
+        ead_validation,
+        lgd_development=lgd_development,
+        lgd_validation=lgd_validation,
         numeric=list(NUMERIC_FEATURES),
         categorical=list(CATEGORICAL_FEATURES),
         seed=seed,
     )
-    loss_payload, _, _ = _public_loss_result(fitted_loss, loss_test, loss_features)
+    loss_payload = _public_loss_result(
+        fitted_loss,
+        ead_test,
+        lgd_test,
+        loss_features,
+        minimum_evaluation_rows=int(model_config["minimum_loss_evaluation_rows"]),
+    )
     ead_all = np.clip(fitted_loss["ead"]["selected_model"].predict(test[loss_features]), 0.0, 1.5)
     lgd_all = np.clip(fitted_loss["lgd"]["selected_model"].predict(test[loss_features]), 0.0, 2.0)
     expected_loss = summarize_expected_loss(
@@ -365,9 +463,30 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
             "calibration_year": int(model_config["calibration_year"]),
             "validation_year": int(model_config["validation_year"]),
             "test_years": model_config["test_years"],
+            "ead_years": {
+                "development": model_config["ead_development_years"],
+                "validation": model_config["ead_validation_year"],
+                "test": model_config["ead_test_years"],
+            },
+            "lgd_years": {
+                "development": model_config["lgd_development_years"],
+                "validation": model_config["lgd_validation_year"],
+                "test": model_config["lgd_test_years"],
+            },
+            "ead_rows": {
+                "development": int(len(ead_development)),
+                "validation": int(len(ead_validation)),
+                "test": int(len(ead_test)),
+            },
+            "lgd_rows": {
+                "development": int(len(lgd_development)),
+                "validation": int(len(lgd_validation)),
+                "test": int(len(lgd_test)),
+            },
         },
         "data_quality": {
             **summarize_eda(frame, target="default_24m", cohort="cohort_year"),
+            "ead_observed_tail": ead_tail,
             "lgd_observed_tail": lgd_tail,
         },
         "pd": {
@@ -402,10 +521,11 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
             ),
         },
         "monitoring": {"feature_drift": drift, "alerts": alerts},
+        "internal_bank_data_gaps": INTERNAL_BANK_DATA_GAPS,
         "limitations": [
             "Academic portfolio study; not a regulatory capital, provisioning, pricing or credit-decision system.",
             "Macro scenarios are transparent sensitivities and not causal forecasts.",
-            "External validation with authorized bank data remains necessary.",
+            "External validation with authorized bank application, borrower, servicing, recovery and accounting data remains necessary.",
         ],
     }
     write_json_atomic(output_path, payload)

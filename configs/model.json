@@ -1,13 +1,18 @@
 {
   "seed": 20260819,
   "target_horizon_months": 24,
-  "event_definition": "90+ days delinquent, foreclosure or equivalent",
+  "event_definition": "first 90+ delinquency or credit zero-balance code 02, 03, 09 or 15 within 24 months",
   "development_years": [2015, 2016, 2017, 2018],
   "calibration_year": 2019,
   "validation_year": 2020,
   "test_years": [2021, 2022],
-  "maximum_rows_per_cohort": 250000,
-  "test_maximum_rows": 500000,
+  "ead_development_years": [2015, 2016, 2017, 2018],
+  "ead_validation_year": 2019,
+  "ead_test_years": [2020, 2021, 2022],
+  "lgd_development_years": [2015, 2016, 2017],
+  "lgd_validation_year": 2018,
+  "lgd_test_years": [2019, 2020],
+  "minimum_loss_evaluation_rows": 100,
   "lgd_lower_bound": 0.0,
   "lgd_upper_bound": 2.0
 }

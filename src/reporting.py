@@ -7,17 +7,15 @@ from typing import Iterable
 
 
 SOURCES = [
-    ("Fannie Mae, Single-Family Loan Performance Data", "https://capitalmarkets.fanniemae.com/credit-risk-transfer/single-family-credit-risk-transfer/fannie-mae-single-family-loan-performance-data"),
-    ("Fannie Mae, Glossary and File Layout", "https://www.fanniemae.com/media/document/pdf/cas-glossarypdf"),
-    ("Fannie Mae, Legal Disclosure", "https://www.fanniemae.com/about-us/legal-disclosure"),
-    ("BLS, Local Area Unemployment Statistics", "https://www.bls.gov/lau/home.htm"),
+    ("Freddie Mac, Single-Family Loan-Level Dataset", "https://www.freddiemac.com/research/datasets/sf-loanlevel-dataset"),
+    ("Freddie Mac, Single-Family Loan-Level Dataset General User Guide, Release 47", "https://www.freddiemac.com/fmac-resources/research/pdf/general_user_guide_july_2026.pdf"),
+    ("Freddie Mac, Terms and Conditions", "https://capitalmarkets.freddiemac.com/crt/docs/pdfs/fre_terms_conditions_sflld.pdf"),
+    ("BLS, Public Data API", "https://www.bls.gov/developers/api_signature_v2.htm"),
     ("FHFA, House Price Index datasets", "https://www.fhfa.gov/house-price-index?tab=HPI+Datasets"),
     ("Basel Committee, IRB risk components", "https://www.bis.org/basel_framework/chapter/CRE/32.htm"),
     ("Federal Reserve, Revised Guidance on Model Risk Management", "https://www.federalreserve.gov/supervisionreg/srletters/SR2602.htm"),
     ("scikit-learn, Logistic Regression", "https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression"),
     ("scikit-learn, Histogram-Based Gradient Boosting", "https://scikit-learn.org/stable/modules/ensemble.html#histogram-based-gradient-boosting"),
-    ("Hugging Face, Trusted Publishers", "https://huggingface.co/docs/hub/trusted-publishers"),
-    ("GitHub, OpenID Connect reference", "https://docs.github.com/en/actions/reference/security/oidc"),
 ]
 
 
@@ -124,7 +122,22 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
     scenarios = result["scenarios"]
     importance = result["governance"]["global_importance"][:10]
     drift = result["monitoring"]["feature_drift"][:10]
-    source_label = "datos privados verificados" if result["identity"]["source"] in {"private_dataset", "local_private_dataset"} else "datos sintéticos de comprobación"
+    target_associations = sorted(
+        [
+            (row["right"] if row["left"] == "default_24m" else row["left"], abs(row["spearman"]))
+            for row in quality["correlations"]
+            if "default_24m" in {row["left"], row["right"]}
+        ],
+        key=lambda item: item[1],
+        reverse=True,
+    )[:8]
+    macro_coverage = min(1 - quality["missingness"].get(name, 1) for name in ("unemployment_3m", "unemployment_change_12m", "hpi_yoy"))
+    source_label = "datos Freddie restringidos y verificados" if result["identity"]["source"] == "restricted_freddie_dataset" else "datos sintéticos de comprobación"
+    compact_size = result["identity"].get("analysis_bytes")
+    compact_label = f"{compact_size / 1_048_576:.1f} MB" if compact_size else "n/d"
+    quarterly_sample = f"{int(result['identity'].get('maximum_rows_per_quarter') or 50_000):,}".replace(",", ".")
+    quarters = ", ".join(f"Q{value}" for value in result["identity"].get("quarters", [1]))
+    gaps = result["internal_bank_data_gaps"]
 
     sections = []
     sections.append(
@@ -132,9 +145,10 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             1,
             "Resumen ejecutivo",
             f"""
-            <p>En este trabajo he construido una solución reproducible para estudiar riesgo hipotecario desde la originación hasta la pérdida económica. El núcleo enlaza una PD a 24 meses con EAD y LGD para obtener pérdida esperada, y añade políticas de retención, sensibilidades macroeconómicas, explicabilidad y monitorización. La ejecución mostrada utiliza <strong>{source_label}</strong>.</p>
-            <div class=cards><article><span>Préstamos analizados</span><strong>{quality['rows']:,}</strong></article><article><span>Tasa de evento</span><strong>{_pct(quality['event_rate'])}</strong></article><article><span>AUC de prueba</span><strong>{_f(test_pd['roc_auc'])}</strong></article><article><span>Brier de prueba</span><strong>{_f(test_pd['brier'],4)}</strong></article><article><span>Pérdida esperada</span><strong>{_f(expected['total_expected_loss'])}</strong></article></div>
+            <p>En este trabajo he construido una solución reproducible para estudiar riesgo hipotecario desde la originación hasta la pérdida económica. El núcleo enlaza una PD a 24 meses con EAD y LGD para obtener pérdida esperada, y añade políticas de retención, sensibilidades macroeconómicas, explicabilidad y monitorización. La ejecución mostrada utiliza <strong>{source_label}</strong> y variables macro con retraso procedentes de BLS y FHFA.</p>
+            <div class=cards><article><span>Préstamos analizados</span><strong>{quality['rows']:,}</strong></article><article><span>Tasa de evento</span><strong>{_pct(quality['event_rate'])}</strong></article><article><span>AUC de prueba</span><strong>{_f(test_pd['roc_auc'])}</strong></article><article><span>Brier de prueba</span><strong>{_f(test_pd['brier'],4)}</strong></article><article><span>Pérdida esperada</span><strong>{_f(expected['total_expected_loss'])}</strong></article><article><span>Compacto privado</span><strong>{compact_label}</strong></article></div>
             <p>El resultado principal no es un motor de decisión. Es una demostración analítica de cartera: separa discriminación y calibración, reconoce el cambio temporal y conserva referencias sencillas cuando un método complejo no mejora fuera de muestra. Esta cautela coincide con el enfoque de gobierno basado en finalidad y materialidad de la guía supervisora revisada [7].</p>
+            <p>Desde mi experiencia bancaria, la principal frontera no es algorítmica: faltan datos internos bancarios de solicitud y decisión, capacidad acreditada, pricing, costes, capital, servicing y recobros. Los he tratado como restricciones de diseño y no como variables implícitamente disponibles.</p>
             {_bar_chart('Volumen por cohorte', [row['cohort'] for row in cohorts], [row['rows'] for row in cohorts])}
             """,
         )
@@ -147,6 +161,7 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             <p>Trabajo en el sector bancario y planteo el problema como lo haría ante una cartera real: primero debo definir qué riesgo mido, cuándo lo observo y para qué decisión se emplearía. El préstamo hipotecario combina horizonte largo, baja frecuencia de default, recuperaciones tardías y fuerte dependencia del ciclo. Por eso una AUC aislada no basta.</p>
             <p>Mi objetivo técnico es estimar <em>PD</em>, <em>EAD</em> y <em>LGD</em>, reconciliarlas como <code>EL = PD × EAD × LGD</code> y someter el resultado a cortes temporales. Basel define LGD como pérdida en porcentaje de EAD [6], pero este estudio no pretende reproducir un cálculo IRB: su PD usa 24 meses, no el horizonte regulatorio de un año, y carece de validación interna bancaria.</p>
             <ul><li>Medir capacidad predictiva y calibración por cohortes.</li><li>Cuantificar exposición y severidad sin esconder el exceso de ceros.</li><li>Comparar reglas de retención y shocks macro transparentes.</li><li>Dejar trazabilidad de datos, código, supuestos y límites.</li></ul>
+            <p>No puedo reconstruir el proceso de admisión de una entidad: faltarían solicitud, decisión, motivo de denegación, versión de política, excepción manual y autoridad aprobadora. Esta ausencia impide estimar sesgo de selección o efecto causal de aprobar; por eso el simulador actúa sobre una cartera ya adquirida.</p>
             {_bar_chart('Tasa de evento por cohorte', [row['cohort'] for row in cohorts], [row['event_rate'] for row in cohorts], percent=True)}
             """,
         )
@@ -156,10 +171,11 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             3,
             "Fuentes, derechos de uso y privacidad",
             """
-            <p>La fuente de préstamo es Fannie Mae Single-Family Loan Performance Data, creada para facilitar el análisis de comportamiento crediticio de una parte de su libro hipotecario [1]. El diccionario oficial define originación, mora, saldo, foreclosure, disposición y costes [2]. No intento identificar personas ni enlazar registros con fuentes externas.</p>
-            <p>Los términos de Fannie Mae restringen la redistribución externa de los datos y permiten resultados académicos no comerciales siempre que no permitan reconstruir registros [3]. Por ello el repositorio de código no contiene datos: el acceso automatizado a una copia privada solo debe activarse cuando la autorización escrita cubra expresamente a los revisores. El HTML contiene exclusivamente agregados.</p>
-            <p>Para contexto macro utilizo LAUS de BLS, que publica empleo y desempleo por estado y residencia [4], y el HPI de FHFA, índice público de compraventas repetidas para vivienda unifamiliar [5]. Impongo retardos de publicación y rechazo cualquier observación cuyo <em>as-of date</em> no preceda a la originación.</p>
-            <div class=note><strong>Privacidad por diseño.</strong> Los fragmentos privados excluyen identificadores, se verifican con SHA-256 y se leen por bloques. La identidad de datos del resultado es <code>{identity}</code>.</div>
+            <p>La fuente hipotecaria es Freddie Mac Single-Family Loan-Level Dataset [1]. El manual oficial define 31 campos de originación y 35 campos mensuales de performance, incluidos mora, saldo, liquidación, recuperaciones, gastos y pérdida realizada [2]. No intento identificar personas ni enlazar registros individuales con terceros.</p>
+            <p>Los términos de Freddie Mac permiten publicar determinados resultados académicos no comerciales, pero prohíben distribuir el dataset o productos que permitan reconstruirlo sin licencia separada [3]. Por ello ni los ZIP ni el compacto analítico se publican o suben a servicios remotos. El HTML contiene solo agregados no reconstructivos; compartir el compacto con tutores requiere autorización compatible con esos términos.</p>
+            <p>Para contexto macro uso la tasa nacional de desempleo LNS14000000 de la API de BLS [4] y el Purchase-Only HPI trimestral y desestacionalizado por estado de FHFA [5]. Aplico dos meses de retraso y rechazo observaciones cuyo <em>as-of date</em> no preceda a la originación. Cada instantánea queda identificada por SHA-256.</p>
+            <p>Freddie no aporta ingresos verificados, estabilidad laboral, activos, pasivos, detalle de bureau ni comportamiento interno de cuenta. Esos datos internos bancarios serían necesarios para medir capacidad de pago y validar que el modelo no depende de una muestra adquirida distinta de la población objetivo.</p>
+            <div class=note><strong>Privacidad por diseño.</strong> El compacto excluye identificador de préstamo, vendedor, servicer y código postal, se verifica con SHA-256 y se lee por bloques. La identidad de implementación del resultado es <code>{identity}</code>.</div>
             """.replace("{identity}", html.escape(result["identity"]["implementation_sha256"][:16] + "…")),
         )
     )
@@ -168,9 +184,10 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             4,
             "Metodología y arquitectura",
             f"""
-            <p>He organizado el flujo como una secuencia determinista: validación del manifiesto, lectura comprimida por bloques, controles de calidad, cortes temporales, entrenamiento, calibración, evaluación, pérdida esperada, escenarios y un artefacto agregado común al HTML y al documento académico.</p>
-            <div class=flow><span>CSV.ZST privado</span><b>→</b><span>integridad y esquema</span><b>→</b><span>cohortes maduras</span><b>→</b><span>PD / EAD / LGD</span><b>→</b><span>EL y escenarios</span><b>→</b><span>informe</span></div>
-            <p>El corte temporal es estricto: desarrollo {result['methodology']['development_years']}, calibración {result['methodology']['calibration_year']}, validación {result['methodology']['validation_year']} y prueba {result['methodology']['test_years']}. El conjunto de prueba no participa en selección ni calibración. Las credenciales de automatización son efímeras mediante OIDC [10][11].</p>
+            <p>He organizado el flujo como una secuencia determinista: validación de los ZIP, muestreo estable, transformación mensual a una fila por préstamo, enriquecimiento macro con retraso, compresión, controles de calidad, cortes temporales, entrenamiento, calibración, evaluación, pérdida esperada, escenarios y artefacto agregado.</p>
+            <div class=flow><span>ZIP Freddie restringidos</span><b>→</b><span>integridad y esquema</span><b>→</b><span>CSV.ZST privado</span><b>→</b><span>PD / EAD / LGD</span><b>→</b><span>EL y escenarios</span><b>→</b><span>HTML autónomo</span></div>
+            <p>El corte temporal de PD es estricto: desarrollo {result['methodology']['development_years']}, calibración {result['methodology']['calibration_year']}, validación {result['methodology']['validation_year']} y prueba {result['methodology']['test_years']}. El conjunto de prueba no participa en selección ni calibración. La ejecución real exige una ruta local autorizada; no hay descarga remota del dato hipotecario.</p>
+            <p>En producción bancaria añadiría linaje campo a campo, definición aprobada de default, fecha <em>as-of</em>, versiones de política, overrides y hallazgos de validación. Al faltar, fijo semántica y cortes en código y manifiesto, pero no afirmo equivalencia con el gobierno interno.</p>
             {_table(['Control', 'Aplicación'], [['Horizonte', '24 meses completos'], ['Fuga', 'solo variables conocidas en originación'], ['Selección', 'validación temporal'], ['Prueba', '2021–2022'], ['Salida', 'agregados sin filas']])}
             """,
         )
@@ -181,9 +198,11 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             5,
             "EDA y preparación",
             f"""
-            <p>La preparación convierte el panel mensual en una observación por préstamo, conserva variables de originación y etiqueta el primer evento de 90+ días, foreclosure o equivalente dentro de 24 meses. Exijo madurez completa; de otro modo un préstamo reciente parecería sano por censura.</p>
-            <p>La tasa global de evento es {_pct(quality['event_rate'])}. Las correlaciones se interpretan como asociación descriptiva, no como causalidad. También reviso cobertura, rangos y colinealidad antes de ajustar modelos.</p>
+            <p>La preparación convierte el panel mensual en una observación por préstamo, conserva variables de originación y etiqueta el primer evento de 90+ días o salida crediticia dentro de 24 meses. Aproximo la originación como un mes antes del primer pago, porque el fichero no publica una fecha de originación directa. Exijo 24 meses observables o una salida terminal; de otro modo un préstamo reciente parecería sano por censura.</p>
+            <p>Analizo {quarters} de 2015–2022, con hasta {quarterly_sample} préstamos por cohorte seleccionados mediante un hash estable. El diseño mantiene ocho años completos y reduce tamaño sin seleccionar por resultado. No puedo contrastar representatividad frente al <em>funnel</em> bancario porque faltan solicitudes rechazadas, canal detallado, documentación de ingresos y reglas internas de admisión.</p>
+            <p>La tasa global de evento es {_pct(quality['event_rate'])} y la cobertura conjunta mínima de las tres variables macro es {_pct(macro_coverage)}. La unión se demuestra por estado y fecha disponible; no existe ni se fuerza una correspondencia individual entre una serie macro y un préstamo. Las correlaciones se interpretan como asociación descriptiva, no como causalidad.</p>
             {_bar_chart('Variables con mayor ausencia', [name for name, _ in missing], [value for _, value in missing], percent=True)}
+            {_bar_chart('Mayor asociación absoluta con el evento (Spearman)', [name for name, _ in target_associations], [value for _, value in target_associations])}
             {_table(['Cohorte', 'Filas', 'Eventos', 'Tasa'], [[row['cohort'], f"{row['rows']:,}", row['events'], _pct(row['event_rate'])] for row in cohorts])}
             """,
         )
@@ -200,6 +219,7 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             {_line_chart('Calibración en prueba', [row['bin'] for row in pd_result['test_calibration']], [('PD media', [row['mean_probability'] for row in pd_result['test_calibration']]), ('Evento observado', [row['event_rate'] for row in pd_result['test_calibration']])], unit_max=max(max(row['mean_probability'], row['event_rate']) for row in pd_result['test_calibration']) * 1.1)}
             {_line_chart('AUC por cohorte de prueba', [row['cohort_year'] for row in test_cohorts], [('AUC', [row['roc_auc'] for row in test_cohorts])], unit_max=1.0)}
             <p>El challenger macro queda <strong>{'promocionado' if pd_result['macro_challenger']['promoted'] else 'no promocionado'}</strong>. Que una variable sea económicamente razonable no basta: debe mejorar fuera de tiempo sin degradar calibración.</p>
+            <p>Para una PD bancaria necesitaría ingreso neto verificado, antigüedad y tipo de empleo, activos líquidos, deudas externas, detalle de bureau, morosidad interna y comportamiento transaccional. Su ausencia reduce poder explicativo y obliga a interpretar la PD como ranking de la cartera Freddie, no como score de admisión transferible.</p>
             """,
         )
     )
@@ -208,10 +228,11 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             7,
             "Modelización de EAD, LGD y pérdida esperada",
             f"""
-            <p>EAD se expresa como saldo al default sobre saldo original. Comparo la referencia 1,0 con un regresor no lineal y conservo <strong>{html.escape(loss['ead']['selected_name'])}</strong>. Para LGD uso una arquitectura de dos etapas: probabilidad de pérdida positiva y severidad condicionada a pérdida. Esta separación evita que una regresión robusta colapse a cero ante una distribución con mucha masa nula.</p>
+            <p>EAD se expresa como saldo en el primer default sobre saldo original. Comparo la referencia 1,0 con un regresor no lineal y conservo <strong>{html.escape(loss['ead']['selected_name'])}</strong>. No rechazo saldos capitalizados: registro {quality['ead_observed_tail']['above_one_point_five']:,} razones observadas superiores a 1,5 y limito solo la predicción usada en EL. LGD se calcula como pérdida realizada publicada dividida por EAD. Comparo media segmentada, Huber y, cuando existen pérdidas nulas y positivas, un modelo de dos etapas.</p>
             {_bar_chart('EAD: error relativo del total en validación', list(ead_metrics), [row['portfolio_relative_error'] for row in ead_metrics.values()], percent=True)}
             {_bar_chart('LGD: error relativo del total en validación', list(lgd_metrics), [row['portfolio_relative_error'] for row in lgd_metrics.values()], percent=True)}
-            <p>El modelo LGD seleccionado es <strong>{html.escape(loss['lgd']['selected_name'])}</strong>. Reporto también WAPE y MAE: recuperar el total de cartera no garantiza precisión préstamo a préstamo. Para el objetivo económico acoto la LGD observada a [0, 2], conservando en calidad el recuento de {quality['lgd_observed_tail']['below_zero']:,} valores bajo cero y {quality['lgd_observed_tail']['above_two']:,} sobre dos. La marca de aptitud para decisión es <strong>{'sí' if loss['decision_grade'] else 'no'}</strong>; incluso cuando los umbrales académicos se superan, sigue faltando validación bancaria.</p>
+            <p>El modelo LGD seleccionado es <strong>{html.escape(loss['lgd']['selected_name'])}</strong>. Reporto WAPE y MAE: recuperar el total de cartera no garantiza precisión préstamo a préstamo. Solo incluyo liquidaciones completas cuya pérdida reconcilia con MI, venta, recuperaciones no MI, gastos, saldo retirado e interés devengado, y cuya fecha queda al menos tres meses antes del cierre del performance. EAD usa {result['methodology']['ead_rows']['development']:,}/{result['methodology']['ead_rows']['validation']:,}/{result['methodology']['ead_rows']['test']:,} defaults en desarrollo/validación/prueba; LGD usa {result['methodology']['lgd_rows']['development']:,}/{result['methodology']['lgd_rows']['validation']:,}/{result['methodology']['lgd_rows']['test']:,} resoluciones maduras.</p>
+            <p>Acoto LGD a [0, 2], conservando el recuento de {quality['lgd_observed_tail']['below_zero']:,} observaciones bajo cero y {quality['lgd_observed_tail']['above_two']:,} sobre dos. La aptitud académica por umbrales es <strong>{'sí' if loss['decision_grade'] else 'no'}</strong>: exijo al menos {loss['sample_adequacy']['minimum_evaluation_rows']:,} casos tanto en validación como en prueba, mientras LGD aporta {loss['sample_adequacy']['lgd_validation_rows']:,}/{loss['sample_adequacy']['lgd_test_rows']:,}. Una entidad necesitaría además pagos contractuales y reales, curas, modificaciones, estrategia de cobro, fechas judiciales, tasación actualizada, recobros, costes legales y de mantenimiento, venta, seguro, write-off y reconciliación contable.</p>
             {_bar_chart('Pérdida esperada por cohorte', [row['cohort_year'] for row in expected['cohorts']], [row['total_expected_loss'] for row in expected['cohorts']])}
             <p>La exposición total modelizada es {_f(expected['exposure_at_default'])} y la pérdida esperada {_f(expected['total_expected_loss'])}, equivalente a {_pct(expected['expected_loss_rate'])} de EAD. No la interpreto como provisión IFRS 9 ni capital regulatorio.</p>
             """,
@@ -223,10 +244,10 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             8,
             "Simulación de políticas de riesgo y escenarios macroeconómicos",
             f"""
-            <p>Las reglas actúan sobre préstamos Fannie ya originados. Por tanto hablo de <em>retención</em>, no de aprobación. Cada combinación aplica límites de CLTV, DTI y PD; después desplaza los log-odds con shocks declarados de desempleo y HPI.</p>
+            <p>Las reglas actúan sobre préstamos Freddie ya originados. Por tanto hablo de <em>retención</em>, no de aprobación. Cada combinación aplica límites de CLTV, DTI y PD; después desplaza los log-odds con shocks declarados de desempleo y HPI.</p>
             {_bar_chart('Retención por política y escenario', scenario_labels, [row['retention_rate'] for row in scenarios], percent=True)}
             {_bar_chart('Pérdida esperada retenida', scenario_labels, [row['retained_expected_loss'] for row in scenarios])}
-            <p>Los shocks son sensibilidades ilustrativas, no previsiones causales. Sirven para comprobar dirección, concentración y materialidad. Una aplicación bancaria exigiría escenarios aprobados, coeficientes validados y reconciliación con presupuesto y capital.</p>
+            <p>Los shocks son sensibilidades ilustrativas, no previsiones causales. Sirven para comprobar dirección, concentración y materialidad. Una aplicación bancaria exigiría escenarios aprobados, coeficientes validados y reconciliación con presupuesto y capital. También requeriría margen, comisiones, coste de financiación, coste de capital, prima de seguro y gastos operativos; sin ellos no optimizo rentabilidad ajustada a riesgo.</p>
             {_table(['Política / macro', 'Retención', 'Exposición', 'PD media', 'EL'], [[label, _pct(row['retention_rate']), _f(row['retained_exposure']), _pct(row['mean_retained_pd']), _f(row['retained_expected_loss'])] for label, row in zip(scenario_labels, scenarios)])}
             """,
         )
@@ -240,6 +261,7 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             {_bar_chart('Importancia global por permutación', [row['feature'] for row in importance], [max(row['importance'], 0) for row in importance])}
             {_bar_chart('PSI de desarrollo a prueba', [row['feature'] for row in drift], [row['psi'] for row in drift]) if drift else '<p>No hay variables suficientes para calcular PSI.</p>'}
             <p>La guía supervisora vigente enfatiza validación, monitorización y controles proporcionales al uso [7]. La solución conserva identidad de datos y código, seed, runtime, métricas por cohorte y alertas. Si el deterioro persiste, la respuesta puede ser ajuste, recalibración o reconstrucción; la complejidad no se presume mejor.</p>
+            <p>Para productivizar necesitaría el diccionario interno versionado, propietarios de datos y modelo, evidencias de calidad, calendario de resultados maduros, umbrales aprobados, registro de overrides, validación independiente e incidencias. El pipeline actual deja puntos verificables para esos controles, pero no inventa su existencia.</p>
             """,
         )
     )
@@ -248,9 +270,9 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             10,
             "Resultados, conclusiones y líneas futuras",
             f"""
-            <p>Concluyo que la separación PD–EAD–LGD es viable con datos de performance, pero no todos los componentes alcanzan la misma fiabilidad. La PD ofrece discriminación útil con AUC {_f(test_pd['roc_auc'])}; el cambio entre 2021 y 2022 muestra que la estabilidad temporal es un resultado, no un supuesto. La LGD exige atención especial por resolución tardía, ceros y colas.</p>
+            <p>Concluyo que la separación PD–EAD–LGD es viable con Freddie Mac, pero no todos los componentes alcanzan la misma fiabilidad. La PD ofrece discriminación útil con AUC {_f(test_pd['roc_auc'])}; el cambio entre 2021 y 2022 muestra que la estabilidad temporal es un resultado, no un supuesto. La LGD exige atención especial por resolución tardía, reconciliación y colas.</p>
             <p>Mi decisión metodológica principal es conservar el modelo más sencillo que mantenga calibración y estabilidad. El componente macro queda como challenger o sensibilidad cuando no mejora fuera de tiempo. Las políticas son comparaciones de cartera y no sustituyen underwriting.</p>
-            <ol><li>Validar con datos bancarios autorizados.</li><li>Reestimar LGD y EAD con costes, recuperaciones y exposición interna.</li><li>Recalibrar con cohortes recientes cuando maduren sus etiquetas.</li><li>Revisar escenarios macro con supuestos aprobados y fuentes con derechos claros.</li><li>Automatizar monitorización con resultados maduros y revisión humana.</li></ol>
+            <ol><li>Validar con datos bancarios autorizados, cubriendo solicitudes aceptadas y rechazadas, capacidad acreditada, bureau y comportamiento.</li><li>Reestimar LGD y EAD con pagos, curas, modificaciones, recobros, write-offs, costes y reconciliación contable interna; añadir margen, financiación y capital para rentabilidad.</li><li>Recalibrar con cohortes recientes cuando maduren sus etiquetas y documentar cambios de política.</li><li>Revisar escenarios macro con supuestos aprobados y fuentes con derechos claros.</li><li>Automatizar monitorización con resultados maduros, validación independiente y revisión humana.</li></ol>
             <div class=note><strong>Conclusión operativa.</strong> El estudio es reproducible y auditable, pero su uso debe permanecer académico hasta superar validación independiente, cobertura de derechos y pruebas con datos internos.</div>
             """,
         )
@@ -266,10 +288,13 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             f"""
             <h3>Bibliografía</h3><ol class=references>{bibliography}</ol>
             <h3>Anexo A · Definiciones</h3>
-            {_table(['Componente', 'Definición del estudio'], [['PD', 'Evento 90+ días, foreclosure o equivalente en 24 meses'], ['EAD', 'Saldo al default / saldo original'], ['LGD', 'Pérdida económica / EAD, acotada entre 0 y 2'], ['EL', 'PD × EAD × LGD']])}
-            <h3>Anexo B · Reproducibilidad</h3>
+            {_table(['Componente', 'Definición del estudio'], [['PD', 'Primer 90+ días o salida crediticia en 24 meses'], ['EAD', 'Saldo en el primer default / saldo original'], ['LGD', 'Actual Loss reconciliada / EAD, acotada entre 0 y 2'], ['EL', 'PD × saldo original × ratio EAD × LGD']])}
+            <h3>Anexo B · Datos internos bancarios necesarios</h3>
+            {_table(['Dominio', 'Campos requeridos', 'Consecuencia de su ausencia'], [[row['domain'], row['fields'], row['impact']] for row in gaps])}
+            <h3>Anexo C · Reproducibilidad</h3>
             <p>Versión del artefacto: {result['version']}. Seed: {result['identity'].get('seed', 'n/d')}. Implementación: <code>{html.escape(result['identity']['implementation_sha256'])}</code>. Python {html.escape(result['identity']['runtime']['python'])}; numpy {html.escape(result['identity']['runtime']['numpy'])}; pandas {html.escape(result['identity']['runtime']['pandas'])}; scikit-learn {html.escape(result['identity']['runtime']['scikit_learn'])}.</p>
-            <h3>Anexo C · Limitaciones declaradas</h3><ul>{''.join(f'<li>{html.escape(value)}</li>' for value in result['limitations'])}</ul>
+            <p>Tras instalar <code>requirements.lock</code>, la comprobación pública se ejecuta con <code>python -m scripts.run_study --mode synthetic</code>. Para la reproducción real autorizada, los ZIP deben conservar la estructura <code>historical_data_YYYY/historical_data_YYYYQn.zip</code>; se define <code>FREDDIE_DATASET_DIR</code>, se ejecuta <code>python -m scripts.prepare_freddie</code> y después <code>python -m scripts.run_study --mode full</code>. El segundo paso reutiliza el único compacto privado si ya existe.</p>
+            <h3>Anexo D · Limitaciones declaradas</h3><ul>{''.join(f'<li>{html.escape(value)}</li>' for value in result['limitations'])}</ul>
             """,
         )
     )
@@ -282,7 +307,7 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
     """
     document = f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Estudio de riesgo crediticio hipotecario</title><style>{css}</style></head>
-<body><header class=cover><p class=eyebrow>Trabajo Fin de Máster · Data Science</p><h1>Riesgo crediticio hipotecario</h1><p>PD, EAD, LGD, pérdida esperada y escenarios con Fannie Mae y contexto macroeconómico oficial.</p><p><strong>Daniel Ladrero Meca</strong><br>Estudio académico reproducible</p></header><main>{''.join(sections)}<footer class=footer>Documento autónomo generado desde agregados verificables.</footer></main></body></html>"""
+<body><header class=cover><p class=eyebrow>Trabajo Fin de Máster · Data Science</p><h1>Riesgo crediticio hipotecario</h1><p>PD, EAD, LGD, pérdida esperada y escenarios con Freddie Mac y contexto macroeconómico oficial.</p><p><strong>Daniel Ladrero Meca</strong><br>Estudio académico reproducible</p></header><main>{''.join(sections)}<footer class=footer>Documento autónomo generado desde agregados verificables.</footer></main></body></html>"""
     for index in range(1, len(SOURCES) + 1):
         document = document.replace(
             f"[{index}]", f'<a class="cite" href="#ref-{index}">[{index}]</a>'

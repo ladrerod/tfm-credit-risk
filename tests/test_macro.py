@@ -4,7 +4,7 @@ import unittest
 
 import pandas as pd
 
-from src.macro import build_state_month_features, merge_macro
+from src.macro import build_official_macro_features, build_state_month_features, merge_macro
 
 
 class MacroTests(unittest.TestCase):
@@ -36,6 +36,41 @@ class MacroTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "future"):
             merge_macro(loans, macro)
+
+    def test_builds_official_features_from_bls_and_fhfa_shapes(self) -> None:
+        bls = {
+            "status": "REQUEST_SUCCEEDED",
+            "Results": {
+                "series": [
+                    {
+                        "seriesID": "LNS14000000",
+                        "data": [
+                            {"year": str(year), "period": f"M{month:02d}", "value": str(4 + month / 10)}
+                            for year in range(2018, 2022)
+                            for month in range(1, 13)
+                        ],
+                    }
+                ]
+            },
+        }
+        hpi = pd.DataFrame(
+            {
+                "hpi_type": "traditional",
+                "hpi_flavor": "purchase-only",
+                "frequency": "quarterly",
+                "level": "State",
+                "place_id": "CA",
+                "yr": [2018, 2018, 2018, 2018, 2019, 2019, 2019, 2019, 2020, 2020, 2020, 2020, 2021, 2021, 2021, 2021],
+                "period": [1, 2, 3, 4] * 4,
+                "index_sa": range(100, 116),
+            }
+        )
+
+        result = build_official_macro_features(bls, hpi, 2020, 2021)
+
+        self.assertEqual({"CA"}, set(result["state"]))
+        self.assertEqual(24, len(result))
+        self.assertTrue(result[["unemployment_3m", "hpi_yoy"]].notna().all().all())
 
 
 if __name__ == "__main__":

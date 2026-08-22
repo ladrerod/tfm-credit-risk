@@ -169,17 +169,26 @@ class HurdleLGD:
 
 
 def train_loss_models(
-    development: pd.DataFrame,
-    validation: pd.DataFrame,
+    ead_development: pd.DataFrame,
+    ead_validation: pd.DataFrame,
     *,
+    lgd_development: pd.DataFrame | None = None,
+    lgd_validation: pd.DataFrame | None = None,
     numeric: list[str],
     categorical: list[str],
     seed: int,
 ) -> dict[str, object]:
     features = numeric + categorical
-    required = set(features).union({"ead_ratio", "lgd"})
-    for name, frame in (("development", development), ("validation", validation)):
-        missing = sorted(required.difference(frame.columns))
+    lgd_development = ead_development if lgd_development is None else lgd_development
+    lgd_validation = ead_validation if lgd_validation is None else lgd_validation
+    populations = (
+        ("EAD development", ead_development, "ead_ratio"),
+        ("EAD validation", ead_validation, "ead_ratio"),
+        ("LGD development", lgd_development, "lgd"),
+        ("LGD validation", lgd_validation, "lgd"),
+    )
+    for name, frame, target in populations:
+        missing = sorted(set(features).union({target}).difference(frame.columns))
         if missing:
             raise ValueError(f"{name} is missing columns: {missing}")
     ead_candidates = {
@@ -189,10 +198,18 @@ def train_loss_models(
     lgd_candidates = {
         "segment_mean": SegmentMeanRegressor(),
         "direct_huber": build_huber_regressor(numeric=numeric, categorical=categorical),
-        "hurdle": HurdleLGD(numeric=numeric, categorical=categorical, seed=seed),
     }
+    lgd_values = np.asarray(lgd_development["lgd"], dtype=float)
+    if (lgd_values == 0).any() and (lgd_values > 0).any():
+        lgd_candidates["hurdle"] = HurdleLGD(numeric=numeric, categorical=categorical, seed=seed)
 
-    def evaluate(candidates: dict[str, object], target: str, upper: float) -> dict[str, object]:
+    def evaluate(
+        candidates: dict[str, object],
+        development: pd.DataFrame,
+        validation: pd.DataFrame,
+        target: str,
+        upper: float,
+    ) -> dict[str, object]:
         metrics = {}
         predictions = {}
         for name, model in candidates.items():
@@ -214,8 +231,8 @@ def train_loss_models(
             "validation_prediction": predictions[selected],
         }
 
-    ead = evaluate(ead_candidates, "ead_ratio", 1.5)
-    lgd = evaluate(lgd_candidates, "lgd", 2.0)
+    ead = evaluate(ead_candidates, ead_development, ead_validation, "ead_ratio", 1.5)
+    lgd = evaluate(lgd_candidates, lgd_development, lgd_validation, "lgd", 2.0)
     decision_grade = bool(
         ead["metrics"][ead["selected_name"]]["portfolio_relative_error"] <= 0.15
         and lgd["metrics"][lgd["selected_name"]]["portfolio_relative_error"] <= 0.50

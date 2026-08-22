@@ -24,7 +24,9 @@ class ReportTests(unittest.TestCase):
             self.assertNotIn("<img", html)
             self.assertIn("break-before: page", html)
             self.assertIn("he construido", html)
-            self.assertIn("https://capitalmarkets.fanniemae.com/", html)
+            self.assertIn("https://capitalmarkets.freddiemac.com/", html)
+            self.assertIn("datos internos bancarios", html)
+            self.assertIn("recobros", html)
             self.assertNotIn("Lectura para decisión", html)
 
 
