@@ -47,6 +47,16 @@ class ScenarioTests(unittest.TestCase):
         self.assertFalse(result["is_forecast"])
         self.assertFalse(result["contains_row_data"])
 
+    def test_rejects_negative_loss_components(self) -> None:
+        invalid = self.frame.copy()
+        invalid.loc[0, "lgd"] = -0.1
+        with self.assertRaisesRegex(ValueError, "economic bounds"):
+            evaluate_scenario(
+                invalid,
+                Policy("base", max_cltv=97, max_dti=50, max_pd=0.08),
+                MacroShock("observed", 0, 0),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

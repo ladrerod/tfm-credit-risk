@@ -10,6 +10,14 @@ class MonitoringTests(unittest.TestCase):
         self.assertAlmostEqual(0.0, psi([1, 2, 3], [1, 2, 3]))
         self.assertAlmostEqual(0.0, jensen_shannon([1, 2, 3], [1, 2, 3]))
 
+    def test_rejects_negative_distribution_mass(self) -> None:
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            psi([10, -1], [10, 1])
+
+    def test_rejects_nonfinite_distribution_mass(self) -> None:
+        with self.assertRaisesRegex(ValueError, "finite"):
+            psi([10, float("nan")], [10, 1])
+
     def test_alert_thresholds_are_actionable(self) -> None:
         self.assertEqual("critical", build_alert("score", 0.30, warning=0.10, critical=0.25)["severity"])
         self.assertEqual("pending_labels", build_alert("score", None, warning=0.10, critical=0.25)["status"])

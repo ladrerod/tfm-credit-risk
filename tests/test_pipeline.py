@@ -63,11 +63,67 @@ class PipelineTests(unittest.TestCase):
             }
 
             with patch.dict("os.environ", {"FREDDIE_ANALYSIS_FILE": str(analysis)}, clear=False):
-                actual, identity = _private_data(config)
+                actual, identity = _private_data(config, seed=7)
 
             pd.testing.assert_frame_equal(frame, actual, check_dtype=False)
             self.assertEqual("restricted_freddie_dataset", identity["source"])
             self.assertEqual(2, identity["population_rows"])
+
+    def test_full_mode_preparation_uses_explicit_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            analysis = root / "freddie-analysis.csv.zst"
+            raw = root / "raw"
+            raw.mkdir()
+            frame = pd.DataFrame({"cohort_year": [2015], "default_24m": [0]})
+
+            def prepare_dataset(_raw_root, output, manifest_path, *, seed, **_kwargs):
+                write_csv_zst(frame, output, level=3)
+                write_json_atomic(
+                    manifest_path,
+                    {
+                        "version": 1,
+                        "seed": seed,
+                        "files": [
+                            {
+                                "name": Path(output).name,
+                                "bytes": Path(output).stat().st_size,
+                                "rows": 1,
+                                "sha256": file_sha256(output),
+                                "columns": list(frame.columns),
+                            }
+                        ],
+                    },
+                )
+
+            config = {
+                "analysis_file_env": "FREDDIE_ANALYSIS_FILE",
+                "dataset_directory_env": "FREDDIE_DATASET_DIR",
+                "analysis_file": analysis.name,
+                "manifest": "manifest.json",
+                "years": [2015],
+                "quarters": [1],
+                "maximum_rows_per_quarter": 10,
+                "compression_level": 3,
+                "macro_cache": "macro",
+                "chunk_rows": 10,
+            }
+            with (
+                patch("src.pipeline.ROOT", root),
+                patch("src.pipeline.prepare_dataset", side_effect=prepare_dataset),
+                patch.dict(
+                    "os.environ",
+                    {
+                        "FREDDIE_ANALYSIS_FILE": str(analysis),
+                        "FREDDIE_DATASET_DIR": str(raw),
+                    },
+                    clear=False,
+                ),
+            ):
+                actual, identity = _private_data(config, seed=7)
+
+            pd.testing.assert_frame_equal(frame, actual, check_dtype=False)
+            self.assertEqual(7, identity["seed"])
 
     def test_synthetic_run_produces_aggregate_reproducible_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

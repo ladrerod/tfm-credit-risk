@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from .expected_loss import compose_expected_loss
+
 
 @dataclass(frozen=True)
 class Policy:
@@ -50,7 +52,9 @@ def evaluate_scenario(
         & (probability <= policy.max_pd)
     )
     exposure = frame["original_upb"].to_numpy(dtype=float) * frame["ead_ratio"].to_numpy(dtype=float)
-    expected_loss = probability.to_numpy() * exposure * frame["lgd"].to_numpy(dtype=float)
+    expected_loss = compose_expected_loss(
+        probability.to_numpy(), exposure, frame["lgd"].to_numpy(dtype=float)
+    )
     indices = retained.to_numpy()
     retained_exposure = float(exposure[indices].sum())
     retained_loss = float(expected_loss[indices].sum())

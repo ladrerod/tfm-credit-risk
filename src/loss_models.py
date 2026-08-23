@@ -211,11 +211,9 @@ def train_loss_models(
         upper: float,
     ) -> dict[str, object]:
         metrics = {}
-        predictions = {}
         for name, model in candidates.items():
             model.fit(development[features], development[target])
             prediction = np.clip(model.predict(validation[features]), 0.0, upper)
-            predictions[name] = prediction
             metrics[name] = regression_metrics(validation[target], prediction)
         selected = min(
             metrics,
@@ -228,7 +226,6 @@ def train_loss_models(
             "selected_name": selected,
             "selected_model": candidates[selected],
             "metrics": metrics,
-            "validation_prediction": predictions[selected],
         }
 
     ead = evaluate(ead_candidates, ead_development, ead_validation, "ead_ratio", 1.5)

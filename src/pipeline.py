@@ -165,7 +165,9 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _private_data(data_config: dict[str, object]) -> tuple[pd.DataFrame, dict[str, object]]:
+def _private_data(
+    data_config: dict[str, object], *, seed: int
+) -> tuple[pd.DataFrame, dict[str, object]]:
     configured = os.environ.get(str(data_config["analysis_file_env"]), "")
     analysis_path = Path(configured) if configured else ROOT / str(data_config["analysis_file"])
     manifest_path = analysis_path.with_name("manifest.json") if configured else ROOT / str(data_config["manifest"])
@@ -182,7 +184,7 @@ def _private_data(data_config: dict[str, object]) -> tuple[pd.DataFrame, dict[st
             years=[int(value) for value in data_config["years"]],
             quarters=[int(value) for value in data_config["quarters"]],
             sample_size=int(data_config["maximum_rows_per_quarter"]),
-            seed=int(_config("model.json")["seed"]),
+            seed=seed,
             compression_level=int(data_config["compression_level"]),
             macro_sources=data_config.get("macro_sources"),
             macro_cache=ROOT / str(data_config["macro_cache"]),
@@ -284,9 +286,15 @@ def _public_loss_result(
         result["decision_grade"]
         and ead_test_metrics["portfolio_relative_error"] <= 0.15
         and lgd_test_metrics["portfolio_relative_error"] <= 0.50
-        and min(sample_adequacy.values()) >= minimum_evaluation_rows
+        and min(
+            ead_validation_rows,
+            ead_test_metrics["n"],
+            lgd_validation_rows,
+            lgd_test_metrics["n"],
+        )
+        >= minimum_evaluation_rows
     )
-    payload = {
+    return {
         "decision_grade": decision_grade,
         "sample_adequacy": sample_adequacy,
         "ead": {
@@ -300,7 +308,6 @@ def _public_loss_result(
             "test_metrics": lgd_test_metrics,
         },
     }
-    return payload
 
 
 def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/study-results.json") -> dict[str, object]:
@@ -315,7 +322,7 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         frame = _synthetic_data(seed)
         identity = {"source": "generated_in_memory", "rows": int(len(frame)), "seed": seed}
     else:
-        frame, identity = _private_data(data_config)
+        frame, identity = _private_data(data_config, seed=seed)
     frame["origination_date"] = pd.to_datetime(frame["origination_date"])
     if "performance_end_date" in frame:
         frame["performance_end_date"] = pd.to_datetime(frame["performance_end_date"])

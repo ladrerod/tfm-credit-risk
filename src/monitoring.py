@@ -5,7 +5,9 @@ from collections.abc import Iterable
 
 
 def _distribution(values: Iterable[float]) -> list[float]:
-    rows = [max(float(value), 0.0) for value in values]
+    rows = [float(value) for value in values]
+    if any(not math.isfinite(value) or value < 0 for value in rows):
+        raise ValueError("distribution mass must be finite and non-negative")
     total = sum(rows)
     if not rows or total <= 0:
         raise ValueError("distribution must have positive mass")
