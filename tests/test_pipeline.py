@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import unittest
@@ -7,19 +8,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+import zstandard as zstd
 
-from src.data_access import write_csv_zst
-from src.integrity import file_sha256, write_json_atomic
 from src.pipeline import _implementation_sha256, _private_data, run_study
 
 
 class PipelineTests(unittest.TestCase):
-    def test_data_configuration_uses_only_freddie_inputs(self) -> None:
-        config = json.loads((Path(__file__).parents[1] / "configs" / "data.json").read_text(encoding="utf-8"))
-        serialized = json.dumps(config).casefold()
-        self.assertIn("freddie", serialized)
-        self.assertEqual([1], config["quarters"])
-
     def test_implementation_identity_ignores_private_runtime_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -33,97 +27,23 @@ class PipelineTests(unittest.TestCase):
                     target.write_text("{}\n", encoding="utf-8")
                 self.assertEqual(expected, _implementation_sha256())
 
-    def test_full_mode_loader_reads_the_restricted_freddie_file(self) -> None:
+    def test_full_mode_reads_one_prepared_file_without_a_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             analysis = root / "freddie-analysis.csv.zst"
             frame = pd.DataFrame({"cohort_year": [2015], "default_24m": [0]})
-            write_csv_zst(frame, analysis, level=3)
-            manifest = {
-                "version": 1,
-                "source": "Freddie Mac Single-Family Loan-Level Dataset",
-                "population_rows": 2,
-                "eligible_rows": 1,
-                "files": [
-                    {
-                        "name": analysis.name,
-                        "bytes": analysis.stat().st_size,
-                        "rows": 1,
-                        "sha256": file_sha256(analysis),
-                        "columns": list(frame.columns),
-                    }
-                ],
-            }
-            write_json_atomic(root / "manifest.json", manifest)
-            config = {
-                "analysis_file_env": "FREDDIE_ANALYSIS_FILE",
-                "analysis_file": "unused.csv.zst",
-                "manifest": "unused.json",
-                "chunk_rows": 10,
-            }
+            compressed = zstd.ZstdCompressor(level=3).compress(frame.to_csv(index=False).encode())
+            analysis.write_bytes(compressed)
+            config = {"analysis_file": analysis.name, "chunk_rows": 10}
 
-            with patch.dict("os.environ", {"FREDDIE_ANALYSIS_FILE": str(analysis)}, clear=False):
-                actual, identity = _private_data(config, seed=7)
+            with patch("src.pipeline.ROOT", root):
+                actual, identity = _private_data(config)
 
             pd.testing.assert_frame_equal(frame, actual, check_dtype=False)
-            self.assertEqual("restricted_freddie_dataset", identity["source"])
-            self.assertEqual(2, identity["population_rows"])
-
-    def test_full_mode_preparation_uses_explicit_seed(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            analysis = root / "freddie-analysis.csv.zst"
-            raw = root / "raw"
-            raw.mkdir()
-            frame = pd.DataFrame({"cohort_year": [2015], "default_24m": [0]})
-
-            def prepare_dataset(_raw_root, output, manifest_path, *, seed, **_kwargs):
-                write_csv_zst(frame, output, level=3)
-                write_json_atomic(
-                    manifest_path,
-                    {
-                        "version": 1,
-                        "seed": seed,
-                        "files": [
-                            {
-                                "name": Path(output).name,
-                                "bytes": Path(output).stat().st_size,
-                                "rows": 1,
-                                "sha256": file_sha256(output),
-                                "columns": list(frame.columns),
-                            }
-                        ],
-                    },
-                )
-
-            config = {
-                "analysis_file_env": "FREDDIE_ANALYSIS_FILE",
-                "dataset_directory_env": "FREDDIE_DATASET_DIR",
-                "analysis_file": analysis.name,
-                "manifest": "manifest.json",
-                "years": [2015],
-                "quarters": [1],
-                "maximum_rows_per_quarter": 10,
-                "compression_level": 3,
-                "macro_cache": "macro",
-                "chunk_rows": 10,
-            }
-            with (
-                patch("src.pipeline.ROOT", root),
-                patch("src.pipeline.prepare_dataset", side_effect=prepare_dataset),
-                patch.dict(
-                    "os.environ",
-                    {
-                        "FREDDIE_ANALYSIS_FILE": str(analysis),
-                        "FREDDIE_DATASET_DIR": str(raw),
-                    },
-                    clear=False,
-                ),
-            ):
-                actual, identity = _private_data(config, seed=7)
-
-            pd.testing.assert_frame_equal(frame, actual, check_dtype=False)
-            self.assertEqual(7, identity["seed"])
+            self.assertEqual("prepared_freddie_dataset", identity["source"])
+            self.assertEqual(1, identity["rows"])
+            self.assertEqual(len(compressed), identity["analysis_bytes"])
+            self.assertEqual(hashlib.sha256(compressed).hexdigest(), identity["analysis_sha256"])
 
     def test_synthetic_run_produces_aggregate_reproducible_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

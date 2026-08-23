@@ -132,11 +132,10 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
         reverse=True,
     )[:8]
     macro_coverage = min(1 - quality["missingness"].get(name, 1) for name in ("unemployment_3m", "unemployment_change_12m", "hpi_yoy"))
-    source_label = "datos Freddie restringidos y verificados" if result["identity"]["source"] == "restricted_freddie_dataset" else "datos sintéticos de comprobación"
+    source_label = "datos Freddie ya preparados" if result["identity"]["source"] == "prepared_freddie_dataset" else "datos sintéticos de comprobación"
     compact_size = result["identity"].get("analysis_bytes")
     compact_label = f"{compact_size / 1_048_576:.1f} MB" if compact_size else "n/d"
-    quarterly_sample = f"{int(result['identity'].get('maximum_rows_per_quarter') or 50_000):,}".replace(",", ".")
-    quarters = ", ".join(f"Q{value}" for value in result["identity"].get("quarters", [1]))
+    cohort_range = f"{cohorts[0]['cohort']}–{cohorts[-1]['cohort']}"
     gaps = result["internal_bank_data_gaps"]
 
     sections = []
@@ -146,7 +145,7 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             "Resumen ejecutivo",
             f"""
             <p>En este trabajo he construido una solución reproducible para estudiar riesgo hipotecario desde la originación hasta la pérdida económica. El núcleo enlaza una PD a 24 meses con EAD y LGD para obtener pérdida esperada, y añade políticas de retención, sensibilidades macroeconómicas, explicabilidad y monitorización. La ejecución mostrada utiliza <strong>{source_label}</strong> y variables macro con retraso procedentes de BLS y FHFA.</p>
-            <div class=cards><article><span>Préstamos analizados</span><strong>{quality['rows']:,}</strong></article><article><span>Tasa de evento</span><strong>{_pct(quality['event_rate'])}</strong></article><article><span>AUC de prueba</span><strong>{_f(test_pd['roc_auc'])}</strong></article><article><span>Brier de prueba</span><strong>{_f(test_pd['brier'],4)}</strong></article><article><span>Pérdida esperada</span><strong>{_f(expected['total_expected_loss'])}</strong></article><article><span>Compacto privado</span><strong>{compact_label}</strong></article></div>
+            <div class=cards><article><span>Préstamos analizados</span><strong>{quality['rows']:,}</strong></article><article><span>Tasa de evento</span><strong>{_pct(quality['event_rate'])}</strong></article><article><span>AUC de prueba</span><strong>{_f(test_pd['roc_auc'])}</strong></article><article><span>Brier de prueba</span><strong>{_f(test_pd['brier'],4)}</strong></article><article><span>Pérdida esperada</span><strong>{_f(expected['total_expected_loss'])}</strong></article><article><span>Archivo preparado</span><strong>{compact_label}</strong></article></div>
             <p>El resultado principal no es un motor de decisión. Es una demostración analítica de cartera: separa discriminación y calibración, reconoce el cambio temporal y conserva referencias sencillas cuando un método complejo no mejora fuera de muestra. Esta cautela coincide con el enfoque de gobierno basado en finalidad y materialidad de la guía supervisora revisada [7].</p>
             <p>Desde mi experiencia bancaria, la principal frontera no es algorítmica: faltan datos internos bancarios de solicitud y decisión, capacidad acreditada, pricing, costes, capital, servicing y recobros. Los he tratado como restricciones de diseño y no como variables implícitamente disponibles.</p>
             {_bar_chart('Volumen por cohorte', [row['cohort'] for row in cohorts], [row['rows'] for row in cohorts])}
@@ -172,10 +171,10 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             "Fuentes, derechos de uso y privacidad",
             """
             <p>La fuente hipotecaria es Freddie Mac Single-Family Loan-Level Dataset [1]. El manual oficial define 31 campos de originación y 35 campos mensuales de performance, incluidos mora, saldo, liquidación, recuperaciones, gastos y pérdida realizada [2]. No intento identificar personas ni enlazar registros individuales con terceros.</p>
-            <p>Los términos de Freddie Mac permiten publicar determinados resultados académicos no comerciales, pero prohíben distribuir el dataset o productos que permitan reconstruirlo sin licencia separada [3]. Por ello ni los ZIP ni el compacto analítico se publican o suben a servicios remotos. El HTML contiene solo agregados no reconstructivos; compartir el compacto con tutores requiere autorización compatible con esos términos.</p>
-            <p>Para contexto macro uso la tasa nacional de desempleo LNS14000000 de la API de BLS [4] y el Purchase-Only HPI trimestral y desestacionalizado por estado de FHFA [5]. Aplico dos meses de retraso y rechazo observaciones cuyo <em>as-of date</em> no preceda a la originación. Cada instantánea queda identificada por SHA-256.</p>
+            <p>Los términos de Freddie Mac permiten publicar determinados resultados académicos no comerciales, pero restringen la redistribución del dataset o de productos reconstructivos sin licencia separada [3]. El repositorio y el HTML contienen solo agregados no reconstructivos; el archivo analítico se comparte por separado con los tutores bajo una autorización compatible con esos términos.</p>
+            <p>El archivo preparado ya incorpora la tasa nacional de desempleo LNS14000000 de BLS [4] y el Purchase-Only HPI trimestral y desestacionalizado por estado de FHFA [5], con dos meses de retraso y fechas disponibles anteriores a la originación.</p>
             <p>Freddie no aporta ingresos verificados, estabilidad laboral, activos, pasivos, detalle de bureau ni comportamiento interno de cuenta. Esos datos internos bancarios serían necesarios para medir capacidad de pago y validar que el modelo no depende de una muestra adquirida distinta de la población objetivo.</p>
-            <div class=note><strong>Privacidad por diseño.</strong> El compacto excluye identificador de préstamo, vendedor, servicer y código postal, se verifica con SHA-256 y se lee por bloques. La identidad de implementación del resultado es <code>{identity}</code>.</div>
+            <div class=note><strong>Privacidad por diseño.</strong> El archivo preparado excluye identificador de préstamo, vendedor, servicer y código postal; se calcula su huella SHA-256 y se inspeccionan sus encabezados antes del análisis. La identidad de implementación del resultado es <code>{identity}</code>.</div>
             """.replace("{identity}", html.escape(result["identity"]["implementation_sha256"][:16] + "…")),
         )
     )
@@ -184,10 +183,10 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             4,
             "Metodología y arquitectura",
             f"""
-            <p>He organizado el flujo como una secuencia determinista: validación de los ZIP, muestreo estable, transformación mensual a una fila por préstamo, enriquecimiento macro con retraso, compresión, controles de calidad, cortes temporales, entrenamiento, calibración, evaluación, pérdida esperada, escenarios y artefacto agregado.</p>
-            <div class=flow><span>ZIP Freddie restringidos</span><b>→</b><span>integridad y esquema</span><b>→</b><span>CSV.ZST privado</span><b>→</b><span>PD / EAD / LGD</span><b>→</b><span>EL y escenarios</span><b>→</b><span>HTML autónomo</span></div>
-            <p>El corte temporal de PD es estricto: desarrollo {result['methodology']['development_years']}, calibración {result['methodology']['calibration_year']}, validación {result['methodology']['validation_year']} y prueba {result['methodology']['test_years']}. El conjunto de prueba no participa en selección ni calibración. La ejecución real exige una ruta local autorizada; no hay descarga remota del dato hipotecario.</p>
-            <p>En producción bancaria añadiría linaje campo a campo, definición aprobada de default, fecha <em>as-of</em>, versiones de política, overrides y hallazgos de validación. Al faltar, fijo semántica y cortes en código y manifiesto, pero no afirmo equivalencia con el gobierno interno.</p>
+            <p>He organizado el flujo como una secuencia determinista: lectura del archivo analítico ya tratado, controles de privacidad y calidad, cortes temporales, entrenamiento, calibración, evaluación, pérdida esperada, escenarios y artefacto agregado.</p>
+            <div class=flow><span>CSV.ZST preparado</span><b>→</b><span>privacidad y calidad</span><b>→</b><span>PD / EAD / LGD</span><b>→</b><span>EL y escenarios</span><b>→</b><span>HTML autónomo</span></div>
+            <p>El corte temporal de PD es estricto: desarrollo {result['methodology']['development_years']}, calibración {result['methodology']['calibration_year']}, validación {result['methodology']['validation_year']} y prueba {result['methodology']['test_years']}. El conjunto de prueba no participa en selección ni calibración. La ejecución real no descarga ni transforma datos de origen.</p>
+            <p>En producción bancaria añadiría linaje campo a campo, definición aprobada de default, fecha <em>as-of</em>, versiones de política, overrides y hallazgos de validación. Al faltar, fijo semántica y cortes en código, pero no afirmo equivalencia con el gobierno interno.</p>
             {_table(['Control', 'Aplicación'], [['Horizonte', '24 meses completos'], ['Fuga', 'solo variables conocidas en originación'], ['Selección', 'validación temporal'], ['Prueba', '2021–2022'], ['Salida', 'agregados sin filas']])}
             """,
         )
@@ -198,8 +197,8 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             5,
             "EDA y preparación",
             f"""
-            <p>La preparación convierte el panel mensual en una observación por préstamo, conserva variables de originación y etiqueta el primer evento de 90+ días o salida crediticia dentro de 24 meses. Aproximo la originación como un mes antes del primer pago, porque el fichero no publica una fecha de originación directa. Exijo 24 meses observables o una salida terminal; de otro modo un préstamo reciente parecería sano por censura.</p>
-            <p>Analizo {quarters} de 2015–2022, con hasta {quarterly_sample} préstamos por cohorte seleccionados mediante un hash estable. El diseño mantiene ocho años completos y reduce tamaño sin seleccionar por resultado. No puedo contrastar representatividad frente al <em>funnel</em> bancario porque faltan solicitudes rechazadas, canal detallado, documentación de ingresos y reglas internas de admisión.</p>
+            <p>El archivo recibido ya resume el panel mensual en una observación por préstamo, conserva variables de originación y etiqueta el primer evento de 90+ días o salida crediticia dentro de 24 meses. La fecha de originación se aproxima como un mes antes del primer pago, porque el fichero fuente no publica una fecha directa; solo se incluyen préstamos con 24 meses observables o una salida terminal.</p>
+            <p>Analizo las cohortes {cohort_range} contenidas en el archivo ya tratado. No puedo contrastar su representatividad frente al <em>funnel</em> bancario porque faltan solicitudes rechazadas, canal detallado, documentación de ingresos y reglas internas de admisión.</p>
             <p>La tasa global de evento es {_pct(quality['event_rate'])} y la cobertura conjunta mínima de las tres variables macro es {_pct(macro_coverage)}. La unión se demuestra por estado y fecha disponible; no existe ni se fuerza una correspondencia individual entre una serie macro y un préstamo. Las correlaciones se interpretan como asociación descriptiva, no como causalidad.</p>
             {_bar_chart('Variables con mayor ausencia', [name for name, _ in missing], [value for _, value in missing], percent=True)}
             {_bar_chart('Mayor asociación absoluta con el evento (Spearman)', [name for name, _ in target_associations], [value for _, value in target_associations])}
@@ -293,7 +292,7 @@ def build_report(artifact_path: str | Path, output_path: str | Path) -> None:
             {_table(['Dominio', 'Campos requeridos', 'Consecuencia de su ausencia'], [[row['domain'], row['fields'], row['impact']] for row in gaps])}
             <h3>Anexo C · Reproducibilidad</h3>
             <p>Versión del artefacto: {result['version']}. Seed: {result['identity'].get('seed', 'n/d')}. Implementación: <code>{html.escape(result['identity']['implementation_sha256'])}</code>. Python {html.escape(result['identity']['runtime']['python'])}; numpy {html.escape(result['identity']['runtime']['numpy'])}; pandas {html.escape(result['identity']['runtime']['pandas'])}; scikit-learn {html.escape(result['identity']['runtime']['scikit_learn'])}.</p>
-            <p>Tras instalar <code>requirements.lock</code>, la comprobación pública se ejecuta con <code>python -m scripts.run_study --mode synthetic</code>. Para la reproducción real autorizada, los ZIP deben conservar la estructura <code>historical_data_YYYY/historical_data_YYYYQn.zip</code>; se define <code>FREDDIE_DATASET_DIR</code>, se ejecuta <code>python -m scripts.prepare_freddie</code> y después <code>python -m scripts.run_study --mode full</code>. El segundo paso reutiliza el único compacto privado si ya existe.</p>
+            <p>Tras instalar <code>requirements.lock</code>, la comprobación pública se ejecuta con <code>python -m scripts.run_study --mode synthetic</code>. Para la reproducción real autorizada, basta con colocar el archivo ya tratado como <code>freddie-analysis.csv.zst</code> en la raíz del proyecto y ejecutar <code>python -m scripts.run_study --mode full</code>.</p>
             <h3>Anexo D · Limitaciones declaradas</h3><ul>{''.join(f'<li>{html.escape(value)}</li>' for value in result['limitations'])}</ul>
             """,
         )

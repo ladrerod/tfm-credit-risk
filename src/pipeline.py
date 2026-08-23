@@ -12,10 +12,9 @@ import pandas as pd
 
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(max(1, (os.cpu_count() or 1) - 1)))
 
-from .data_access import load_manifest, read_csv_zst, verify_file
+from .data_access import read_csv_zst
 from .data_quality import summarize_eda, validate_frame
 from .expected_loss import summarize_expected_loss
-from .freddie_data import prepare_dataset
 from .governance import audit_numeric_associations, global_importance, representative_sensitivity
 from .integrity import file_sha256, write_json_atomic
 from .loss_models import regression_metrics, train_loss_models
@@ -49,21 +48,6 @@ CATEGORICAL_FEATURES = (
     "high_balance_loan",
 )
 MACRO_FEATURES = ("unemployment_3m", "unemployment_change_12m", "hpi_yoy")
-PRIVATE_DTYPES = {
-    "origination_date": "string",
-    "performance_end_date": "string",
-    "default_event_date": "string",
-    "zero_balance_date": "string",
-    "cohort_year": "int16",
-    "default_24m": "int8",
-    "original_upb": "float64",
-    "ead_ratio": "float32",
-    "lgd": "float32",
-    "lgd_eligible": "boolean",
-    **{name: "float32" for name in NUMERIC_FEATURES if name != "original_upb"},
-    **{name: "float32" for name in MACRO_FEATURES},
-    **{name: "string" for name in CATEGORICAL_FEATURES},
-}
 INTERNAL_BANK_DATA_GAPS = [
     {
         "domain": "Admisión y decisión",
@@ -165,44 +149,11 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _private_data(
-    data_config: dict[str, object], *, seed: int
-) -> tuple[pd.DataFrame, dict[str, object]]:
-    configured = os.environ.get(str(data_config["analysis_file_env"]), "")
-    analysis_path = Path(configured) if configured else ROOT / str(data_config["analysis_file"])
-    manifest_path = analysis_path.with_name("manifest.json") if configured else ROOT / str(data_config["manifest"])
+def _private_data(data_config: dict[str, object]) -> tuple[pd.DataFrame, dict[str, object]]:
+    analysis_path = ROOT / str(data_config["analysis_file"])
     if not analysis_path.is_file():
-        raw_root = os.environ.get(str(data_config["dataset_directory_env"]), "")
-        if not raw_root:
-            raise FileNotFoundError(
-                f"missing {analysis_path}; set {data_config['dataset_directory_env']} to prepare it"
-            )
-        prepare_dataset(
-            raw_root,
-            analysis_path,
-            manifest_path,
-            years=[int(value) for value in data_config["years"]],
-            quarters=[int(value) for value in data_config["quarters"]],
-            sample_size=int(data_config["maximum_rows_per_quarter"]),
-            seed=seed,
-            compression_level=int(data_config["compression_level"]),
-            macro_sources=data_config.get("macro_sources"),
-            macro_cache=ROOT / str(data_config["macro_cache"]),
-        )
-    manifest = load_manifest(manifest_path)
-    if len(manifest["files"]) != 1 or manifest["files"][0]["name"] != analysis_path.name:
-        raise ValueError("Freddie manifest must describe the configured analysis file")
-    item = manifest["files"][0]
-    verify_file(analysis_path, item)
-    frames = []
-    dtypes = {name: dtype for name, dtype in PRIVATE_DTYPES.items() if name in item["columns"]}
-    for chunk in read_csv_zst(
-        analysis_path,
-        columns=item["columns"],
-        chunksize=int(data_config["chunk_rows"]),
-        dtypes=item.get("dtypes", dtypes),
-    ):
-        frames.append(chunk)
+        raise FileNotFoundError(f"missing prepared Freddie file: {analysis_path}")
+    frames = list(read_csv_zst(analysis_path, chunksize=int(data_config["chunk_rows"])))
     if not frames:
         raise ValueError("Freddie analysis file contains no rows")
     frame = pd.concat(frames, ignore_index=True)
@@ -210,18 +161,10 @@ def _private_data(
         if column in frame:
             frame[column] = frame[column].astype("category")
     return frame, {
-        "source": "restricted_freddie_dataset",
-        "files": len(manifest.get("source_files", [])),
-        "manifest_sha256": file_sha256(manifest_path),
-        "analysis_sha256": item["sha256"],
-        "analysis_bytes": item["bytes"],
-        "population_rows": int(manifest.get("population_rows", item["rows"])),
-        "eligible_rows": int(manifest.get("eligible_rows", item["rows"])),
-        "seed": manifest.get("seed"),
-        "years": manifest.get("years", []),
-        "quarters": manifest.get("quarters", []),
-        "maximum_rows_per_quarter": manifest.get("maximum_rows_per_quarter"),
-        "macro_sources": manifest.get("macro_sources", []),
+        "source": "prepared_freddie_dataset",
+        "rows": int(len(frame)),
+        "analysis_sha256": file_sha256(analysis_path),
+        "analysis_bytes": analysis_path.stat().st_size,
     }
 
 
@@ -322,7 +265,7 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         frame = _synthetic_data(seed)
         identity = {"source": "generated_in_memory", "rows": int(len(frame)), "seed": seed}
     else:
-        frame, identity = _private_data(data_config, seed=seed)
+        frame, identity = _private_data(data_config)
     frame["origination_date"] = pd.to_datetime(frame["origination_date"])
     if "performance_end_date" in frame:
         frame["performance_end_date"] = pd.to_datetime(frame["performance_end_date"])

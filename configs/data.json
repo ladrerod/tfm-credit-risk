@@ -1,16 +1,4 @@
 {
-  "dataset_directory_env": "FREDDIE_DATASET_DIR",
-  "analysis_file_env": "FREDDIE_ANALYSIS_FILE",
-  "analysis_file": ".private/freddie/freddie-analysis.csv.zst",
-  "manifest": ".private/freddie/manifest.json",
-  "years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022],
-  "quarters": [1],
-  "maximum_rows_per_quarter": 50000,
-  "compression_level": 19,
-  "chunk_rows": 100000,
-  "macro_cache": ".private/macro",
-  "macro_sources": {
-    "unemployment": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
-    "house_prices": "https://www.fhfa.gov/hpi/download/monthly/hpi_master.csv"
-  }
+  "analysis_file": "freddie-analysis.csv.zst",
+  "chunk_rows": 100000
 }

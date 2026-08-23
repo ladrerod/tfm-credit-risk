@@ -1,12 +1,12 @@
 # Credit Risk Audit Model
 
-Estudio reproducible de riesgo crediticio hipotecario. El proyecto prepara datos de Freddie Mac, incorpora contexto macroeconómico oficial y estima probabilidad de incumplimiento (PD), exposición al incumplimiento (EAD), pérdida dado el incumplimiento (LGD) y pérdida esperada.
+Estudio reproducible de riesgo crediticio hipotecario. El proyecto consume un archivo Freddie Mac ya preparado, incorpora su contexto macroeconómico y estima probabilidad de incumplimiento (PD), exposición al incumplimiento (EAD), pérdida dado el incumplimiento (LGD) y pérdida esperada.
 
 El resultado es un artefacto agregado y un [informe HTML autónomo](results/mortgage-credit-risk-study.html). No es un sistema de concesión, pricing, provisiones o capital regulatorio.
 
 ## Capacidades
 
-- preparación determinista del Freddie Mac Single-Family Loan-Level Dataset;
+- lectura directa del archivo analítico Freddie Mac ya preparado;
 - controles de esquema, integridad, privacidad y censura temporal;
 - desarrollo, calibración, validación y prueba mediante cohortes separadas;
 - comparación de modelos para PD, EAD y LGD;
@@ -18,7 +18,7 @@ El resultado es un artefacto agregado y un [informe HTML autónomo](results/mort
 
 - Python 3.13;
 - dependencias fijadas en `requirements.lock`;
-- acceso autorizado a los datos de Freddie Mac únicamente para el modo `full`.
+- `freddie-analysis.csv.zst` ya preparado y autorizado únicamente para el modo `full`.
 
 Creación del entorno en PowerShell:
 
@@ -49,25 +49,13 @@ Genera:
 
 ## Ejecución con datos Freddie Mac
 
-Los ZIP autorizados deben conservar esta estructura:
-
-```text
-<directorio-fuente>/
-└── historical_data_2015/
-    └── historical_data_2015Q1.zip
-```
-
-En PowerShell:
+Coloca el archivo ya tratado que recibirás con el nombre `freddie-analysis.csv.zst` en la raíz del proyecto y ejecuta:
 
 ```powershell
-$env:FREDDIE_DATASET_DIR = "C:\ruta\a\los\datos"
-python -m scripts.prepare_freddie
 python -m scripts.run_study --mode full
 ```
 
-`scripts.prepare_freddie` crea un único CSV comprimido y su manifiesto dentro de `.private/`. También puede indicarse un archivo analítico existente mediante `FREDDIE_ANALYSIS_FILE`.
-
-Los datos originales, archivos preparados y resultados intermedios están excluidos del repositorio. El dataset de Freddie Mac no se redistribuye y su uso está sujeto a los términos del proveedor.
+No se necesitan ZIP, manifiestos, variables de entorno ni pasos de transformación. El archivo preparado está excluido del repositorio y su uso sigue sujeto a los términos de Freddie Mac.
 
 ## Pruebas
 
@@ -82,10 +70,9 @@ La integración continua instala las versiones bloqueadas, ejecuta toda la suite
 | Ruta | Responsabilidad |
 | --- | --- |
 | `configs/` | Datos, modelos, monitorización y escenarios |
-| `scripts/prepare_freddie.py` | Preparación del dataset restringido |
 | `scripts/run_study.py` | Ejecución completa y generación del informe |
 | `scripts/build_report.py` | Reconstrucción del HTML desde un artefacto JSON |
-| `src/freddie_data.py` | Lectura y transformación de originación y performance |
+| `src/data_access.py` | Lectura segura del archivo analítico preparado |
 | `src/pipeline.py` | Orquestación del estudio |
 | `src/pd_model.py` | Entrenamiento, calibración y selección de PD |
 | `src/loss_models.py` | Entrenamiento y selección de EAD y LGD |
@@ -94,7 +81,7 @@ La integración continua instala las versiones bloqueadas, ejecuta toda la suite
 
 ## Controles principales
 
-- hashes SHA-256 y manifiestos reproducibles;
+- huella SHA-256 calculada directamente sobre el archivo preparado;
 - rechazo de identificadores privados en el archivo analítico;
 - validación de rangos, claves y componentes económicos;
 - separación temporal estricta entre desarrollo y prueba;
