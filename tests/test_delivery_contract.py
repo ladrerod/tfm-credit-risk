@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TEXT_SUFFIXES = {".py", ".json", ".lock", ".yml", ".html"}
+TEXT_SUFFIXES = {".py", ".json", ".lock", ".yml", ".html", ".md"}
 
 
 def delivery_files() -> list[Path]:
@@ -24,6 +24,7 @@ def delivery_files() -> list[Path]:
 class DeliveryContractTests(unittest.TestCase):
     def test_required_entrypoints_exist(self) -> None:
         required = {
+            ROOT / "README.md",
             ROOT / "scripts" / "run_study.py",
             ROOT / "scripts" / "build_report.py",
             ROOT / "results" / "mortgage-credit-risk-study.html",
@@ -37,7 +38,11 @@ class DeliveryContractTests(unittest.TestCase):
         violations: list[str] = []
         for path in delivery_files():
             relative = path.relative_to(ROOT)
-            if relative.parts[0] in blocked_roots or (path.is_file() and path.suffix.casefold() in blocked_suffixes):
+            if relative.parts[0] in blocked_roots or (
+                path.is_file()
+                and path.suffix.casefold() in blocked_suffixes
+                and relative != Path("README.md")
+            ):
                 violations.append(str(relative))
         self.assertEqual([], violations)
 
