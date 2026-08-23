@@ -5,15 +5,6 @@ from collections.abc import Mapping, Sequence
 import pandas as pd
 
 
-def mature_at_horizon(frame: pd.DataFrame, months: int) -> pd.Series:
-    if months <= 0:
-        raise ValueError("horizon must be positive")
-    origin = pd.to_datetime(frame["origination_date"])
-    end = pd.to_datetime(frame["performance_end_date"])
-    observed = (end.dt.year - origin.dt.year) * 12 + end.dt.month - origin.dt.month
-    return observed >= months
-
-
 def validate_frame(
     frame: pd.DataFrame,
     *,

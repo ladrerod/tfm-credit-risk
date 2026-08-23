@@ -4,19 +4,10 @@ import unittest
 
 import pandas as pd
 
-from src.data_quality import mature_at_horizon, summarize_eda, validate_frame
+from src.data_quality import summarize_eda, validate_frame
 
 
 class DataQualityTests(unittest.TestCase):
-    def test_maturity_requires_complete_horizon(self) -> None:
-        frame = pd.DataFrame(
-            {
-                "origination_date": pd.to_datetime(["2020-01-01", "2020-01-01"]),
-                "performance_end_date": pd.to_datetime(["2022-01-01", "2021-12-01"]),
-            }
-        )
-        self.assertEqual([True, False], mature_at_horizon(frame, 24).tolist())
-
     def test_validation_rejects_duplicate_keys_and_ranges(self) -> None:
         duplicate = pd.DataFrame({"record_key": [1, 1], "cltv": [80.0, 101.0]})
         with self.assertRaisesRegex(ValueError, "duplicate"):

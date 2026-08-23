@@ -2,30 +2,11 @@ from __future__ import annotations
 
 from itertools import combinations
 from math import isfinite
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
 from sklearn.inspection import permutation_importance
-
-
-def explain_linear(
-    coefficients: Iterable[float],
-    values: Iterable[float],
-    *,
-    intercept: float,
-    names: Iterable[str],
-) -> dict[str, object]:
-    rows = [
-        {"feature": str(name), "contribution": float(coefficient * value)}
-        for coefficient, value, name in zip(coefficients, values, names)
-    ]
-    rows.sort(key=lambda row: abs(row["contribution"]), reverse=True)
-    return {
-        "intercept": float(intercept),
-        "score": float(intercept + sum(row["contribution"] for row in rows)),
-        "contributions": rows,
-    }
 
 
 def audit_numeric_associations(

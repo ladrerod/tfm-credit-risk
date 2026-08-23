@@ -9,7 +9,6 @@
   "compression_level": 19,
   "chunk_rows": 100000,
   "macro_cache": ".private/macro",
-  "loan_source": "Freddie Mac Single-Family Loan-Level Dataset",
   "macro_sources": {
     "unemployment": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
     "house_prices": "https://www.fhfa.gov/hpi/download/monthly/hpi_master.csv"
