@@ -84,7 +84,7 @@ class ProductTests(unittest.TestCase):
     def test_implementation_hash_changes_with_every_prediction_dependency(self) -> None:
         def digest(changed_name: str | None) -> str:
             with patch(
-                "src.product.file_sha256",
+                "src.product._source_sha256",
                 side_effect=lambda path: "f" * 64 if path.name == changed_name else "0" * 64,
             ):
                 return _implementation_sha256()
@@ -93,6 +93,25 @@ class ProductTests(unittest.TestCase):
         for name in ("product.py", "pd_model.py", "metrics.py", "data_access.py", "integrity.py", "api.py"):
             with self.subTest(name=name):
                 self.assertNotEqual(baseline, digest(name))
+
+    def test_implementation_hash_canonicalizes_source_line_endings(self) -> None:
+        names = ("product.py", "pd_model.py", "metrics.py", "data_access.py", "integrity.py", "api.py")
+        source = "value = 1\nresult = value\n"
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in names:
+                (root / name).write_bytes(source.encode())
+
+            def digest(contents: bytes) -> str:
+                (root / "product.py").write_bytes(contents)
+                with patch("src.product.__file__", str(root / "product.py")):
+                    return _implementation_sha256()
+
+            expected = digest(source.encode())
+            self.assertEqual(expected, digest(source.replace("\n", "\r\n").encode()))
+            self.assertEqual(expected, digest(source.replace("\n", "\r").encode()))
+            self.assertNotEqual(expected, digest(b"value = 2\nresult = value\n"))
 
     def test_training_rejects_an_implementation_changed_after_import(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -57,6 +57,11 @@ REQUIRED_BUNDLE_KEYS = {
 }
 
 
+def _source_sha256(path: str | Path) -> str:
+    source = Path(path).read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(source).hexdigest()
+
+
 def _implementation_sha256() -> str:
     digest = hashlib.sha256()
     for path in (
@@ -68,7 +73,7 @@ def _implementation_sha256() -> str:
         Path(__file__).with_name("api.py"),
     ):
         digest.update(path.name.encode("utf-8"))
-        digest.update(bytes.fromhex(file_sha256(path)))
+        digest.update(bytes.fromhex(_source_sha256(path)))
     return digest.hexdigest()
 
 
