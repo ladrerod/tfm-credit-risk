@@ -81,6 +81,13 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("expected_loss", first)
             self.assertIn("scenarios", first)
             self.assertIn("monitoring", first)
+            self.assertTrue(first["backtesting"]["available"])
+            self.assertEqual(3, len(first["backtesting"]["folds"]))
+            self.assertFalse(first["backtesting"]["contains_row_data"])
+            self.assertEqual(
+                ["evaluated"] * 3,
+                [fold["ead"]["status"] for fold in first["backtesting"]["folds"]],
+            )
             self.assertTrue(first["monthly_risk"]["available"])
             self.assertEqual("multinomial_logistic", first["monthly_risk"]["champion_name"])
             self.assertFalse(first["monthly_risk"]["contains_row_data"])
@@ -101,8 +108,29 @@ class PipelineTests(unittest.TestCase):
     def test_synthetic_data_has_one_source_cutoff(self) -> None:
         frame = _synthetic_data(seed=7)
 
+        self.assertEqual(6000, len(frame))
+        self.assertEqual(list(range(2015, 2023)), sorted(frame["cohort_year"].unique()))
+        self.assertEqual([750] * 8, frame.groupby("cohort_year").size().tolist())
         self.assertEqual(1, frame["source_cutoff_date"].nunique())
         self.assertEqual(pd.Timestamp("2026-03-01"), frame["source_cutoff_date"].iloc[0])
+
+    def test_full_legacy_compact_marks_backtesting_for_regeneration(self) -> None:
+        frame = _synthetic_data(seed=7).drop(
+            columns=[
+                "source_cutoff_date",
+                "pd_label_available_date",
+                "ead_label_available_date",
+                "lgd_label_available_date",
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "src.pipeline._private_data",
+            return_value=(frame, {"source": "legacy_test", "rows": len(frame)}),
+        ), patch("src.pipeline._private_monthly_data", return_value=(None, {})):
+            result = run_study("full", output_path=Path(directory) / "study-results.json")
+
+        self.assertFalse(result["backtesting"]["available"])
+        self.assertIn("regenerate", result["backtesting"]["reason"])
 
 
 if __name__ == "__main__":

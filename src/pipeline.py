@@ -13,6 +13,7 @@ import pandas as pd
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(max(1, (os.cpu_count() or 1) - 1)))
 
 from .data_access import read_csv_zst
+from .backtesting import TEMPORAL_COLUMNS, run_walk_forward
 from .data_quality import summarize_eda, validate_frame
 from .expected_loss import summarize_expected_loss
 from .governance import audit_numeric_associations, global_importance, representative_sensitivity
@@ -86,10 +87,28 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
     generator = np.random.default_rng(seed)
     rows = []
     source_cutoff_date = pd.Timestamp("2026-03-01")
-    unemployment_by_year = {2017: 4.4, 2018: 3.9, 2019: 3.7, 2020: 8.1, 2021: 5.4, 2022: 3.7}
-    hpi_by_year = {2017: 0.06, 2018: 0.055, 2019: 0.04, 2020: 0.09, 2021: 0.16, 2022: 0.11}
-    for year in range(2017, 2023):
-        count = 1000
+    unemployment_by_year = {
+        2015: 5.3,
+        2016: 4.9,
+        2017: 4.4,
+        2018: 3.9,
+        2019: 3.7,
+        2020: 8.1,
+        2021: 5.4,
+        2022: 3.7,
+    }
+    hpi_by_year = {
+        2015: 0.052,
+        2016: 0.054,
+        2017: 0.06,
+        2018: 0.055,
+        2019: 0.04,
+        2020: 0.09,
+        2021: 0.16,
+        2022: 0.11,
+    }
+    for year in range(2015, 2023):
+        count = 750
         fico = np.clip(generator.normal(720 - 3 * (year == 2022), 48, count), 500, 850)
         ltv = generator.uniform(40, 100, count)
         cltv = np.clip(ltv + generator.uniform(0, 6, count), 40, 110)
@@ -107,6 +126,7 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
         )
         probability = 1 / (1 + np.exp(-log_odds))
         default = generator.binomial(1, probability)
+        default[np.argsort(probability)[-25:]] = 1
         positive_loss_probability = 1 / (1 + np.exp(-(-0.5 + 0.035 * (cltv - 80))))
         positive_loss = generator.binomial(1, positive_loss_probability)
         lgd = positive_loss * np.clip(
@@ -486,6 +506,28 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
     validation = frame.loc[frame["cohort_year"] == int(model_config["validation_year"])].copy()
     test = frame.loc[frame["cohort_year"].isin(model_config["test_years"])].copy()
     pd_config = PDConfig(NUMERIC_FEATURES, CATEGORICAL_FEATURES, seed)
+    backtest_config = model_config["backtesting"]
+    if TEMPORAL_COLUMNS.issubset(frame.columns):
+        backtesting = run_walk_forward(
+            frame,
+            backtest_config["folds"],
+            pd_config,
+            numeric=list(NUMERIC_FEATURES),
+            categorical=list(CATEGORICAL_FEATURES),
+            seed=seed,
+            minimum_ead_rows=int(backtest_config["minimum_ead_rows"]),
+            minimum_lgd_rows=int(backtest_config["minimum_lgd_rows"]),
+        )
+    else:
+        missing_temporal = sorted(TEMPORAL_COLUMNS.difference(frame.columns))
+        backtesting = {
+            "available": False,
+            "contains_row_data": False,
+            "reason": (
+                "regenerate the prepared Freddie compact with temporal lineage columns: "
+                + ", ".join(missing_temporal)
+            ),
+        }
     fitted_pd = train_and_select(development, calibration, validation, pd_config)
     pd_model = fitted_pd["selected_model"]
     test_probability = pd_model.predict_proba(test[list(pd_config.features)])[:, 1]
@@ -654,6 +696,7 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
             ),
             "macro_challenger": macro_payload,
         },
+        "backtesting": backtesting,
         "monthly_risk": monthly_risk,
         "loss_components": loss_payload,
         "expected_loss": expected_loss,

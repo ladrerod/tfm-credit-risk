@@ -5,7 +5,14 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from src.loss_models import HurdleLGD, build_huber_regressor, regression_metrics, train_loss_models
+from src.loss_models import (
+    HurdleLGD,
+    build_huber_regressor,
+    regression_metrics,
+    train_ead_models,
+    train_lgd_models,
+    train_loss_models,
+)
 
 
 class LossModelTests(unittest.TestCase):
@@ -92,6 +99,36 @@ class LossModelTests(unittest.TestCase):
         )
 
         self.assertNotIn("hurdle", result["lgd"]["metrics"])
+
+    def test_component_trainers_preserve_combined_public_contract(self) -> None:
+        development = self._sample(11, 1000)
+        validation = self._sample(12, 500)
+
+        ead = train_ead_models(
+            development,
+            validation,
+            numeric=["original_cltv", "credit_score"],
+            categorical=["occupancy"],
+            seed=42,
+        )
+        lgd = train_lgd_models(
+            development,
+            validation,
+            numeric=["original_cltv", "credit_score"],
+            categorical=["occupancy"],
+            seed=42,
+        )
+        combined = train_loss_models(
+            development,
+            validation,
+            numeric=["original_cltv", "credit_score"],
+            categorical=["occupancy"],
+            seed=42,
+        )
+
+        self.assertEqual({"ead", "lgd", "decision_grade"}, set(combined))
+        self.assertEqual(ead["selected_name"], combined["ead"]["selected_name"])
+        self.assertEqual(lgd["selected_name"], combined["lgd"]["selected_name"])
 
 
 if __name__ == "__main__":

@@ -168,6 +168,89 @@ class HurdleLGD:
         return np.clip(occurrence * severity, 0.0, 2.0)
 
 
+def _evaluate_models(
+    candidates: dict[str, object],
+    development: pd.DataFrame,
+    validation: pd.DataFrame,
+    *,
+    target: str,
+    upper: float,
+    features: list[str],
+    label: str,
+) -> dict[str, object]:
+    for role, frame in (("development", development), ("validation", validation)):
+        missing = sorted(set(features).union({target}).difference(frame.columns))
+        if missing:
+            raise ValueError(f"{label} {role} is missing columns: {missing}")
+    metrics = {}
+    for name, model in candidates.items():
+        model.fit(development[features], development[target])
+        prediction = np.clip(model.predict(validation[features]), 0.0, upper)
+        metrics[name] = regression_metrics(validation[target], prediction)
+    selected = min(
+        metrics,
+        key=lambda name: (
+            metrics[name]["portfolio_relative_error"],
+            metrics[name]["mae"],
+        ),
+    )
+    return {
+        "selected_name": selected,
+        "selected_model": candidates[selected],
+        "metrics": metrics,
+    }
+
+
+def train_ead_models(
+    development: pd.DataFrame,
+    validation: pd.DataFrame,
+    *,
+    numeric: list[str],
+    categorical: list[str],
+    seed: int,
+) -> dict[str, object]:
+    return _evaluate_models(
+        {
+            "constant_1": ConstantRegressor(1.0),
+            "hist_gradient_boosting": build_hgb_regressor(
+                numeric=numeric, categorical=categorical, seed=seed
+            ),
+        },
+        development,
+        validation,
+        target="ead_ratio",
+        upper=1.5,
+        features=numeric + categorical,
+        label="EAD",
+    )
+
+
+def train_lgd_models(
+    development: pd.DataFrame,
+    validation: pd.DataFrame,
+    *,
+    numeric: list[str],
+    categorical: list[str],
+    seed: int,
+) -> dict[str, object]:
+    candidates: dict[str, object] = {
+        "segment_mean": SegmentMeanRegressor(),
+        "direct_huber": build_huber_regressor(numeric=numeric, categorical=categorical),
+    }
+    values = np.asarray(development["lgd"], dtype=float) if "lgd" in development else np.asarray([])
+    if (values == 0).any() and (values > 0).any():
+        candidates["hurdle"] = HurdleLGD(numeric=numeric, categorical=categorical, seed=seed)
+    return _evaluate_models(
+        candidates,
+        development,
+        validation,
+        target="lgd",
+        upper=2.0,
+        features=numeric + categorical,
+        label="LGD",
+    )
+
+
 def train_loss_models(
     ead_development: pd.DataFrame,
     ead_validation: pd.DataFrame,
@@ -178,58 +261,22 @@ def train_loss_models(
     categorical: list[str],
     seed: int,
 ) -> dict[str, object]:
-    features = numeric + categorical
     lgd_development = ead_development if lgd_development is None else lgd_development
     lgd_validation = ead_validation if lgd_validation is None else lgd_validation
-    populations = (
-        ("EAD development", ead_development, "ead_ratio"),
-        ("EAD validation", ead_validation, "ead_ratio"),
-        ("LGD development", lgd_development, "lgd"),
-        ("LGD validation", lgd_validation, "lgd"),
+    ead = train_ead_models(
+        ead_development,
+        ead_validation,
+        numeric=numeric,
+        categorical=categorical,
+        seed=seed,
     )
-    for name, frame, target in populations:
-        missing = sorted(set(features).union({target}).difference(frame.columns))
-        if missing:
-            raise ValueError(f"{name} is missing columns: {missing}")
-    ead_candidates = {
-        "constant_1": ConstantRegressor(1.0),
-        "hist_gradient_boosting": build_hgb_regressor(numeric=numeric, categorical=categorical, seed=seed),
-    }
-    lgd_candidates = {
-        "segment_mean": SegmentMeanRegressor(),
-        "direct_huber": build_huber_regressor(numeric=numeric, categorical=categorical),
-    }
-    lgd_values = np.asarray(lgd_development["lgd"], dtype=float)
-    if (lgd_values == 0).any() and (lgd_values > 0).any():
-        lgd_candidates["hurdle"] = HurdleLGD(numeric=numeric, categorical=categorical, seed=seed)
-
-    def evaluate(
-        candidates: dict[str, object],
-        development: pd.DataFrame,
-        validation: pd.DataFrame,
-        target: str,
-        upper: float,
-    ) -> dict[str, object]:
-        metrics = {}
-        for name, model in candidates.items():
-            model.fit(development[features], development[target])
-            prediction = np.clip(model.predict(validation[features]), 0.0, upper)
-            metrics[name] = regression_metrics(validation[target], prediction)
-        selected = min(
-            metrics,
-            key=lambda name: (
-                metrics[name]["portfolio_relative_error"],
-                metrics[name]["mae"],
-            ),
-        )
-        return {
-            "selected_name": selected,
-            "selected_model": candidates[selected],
-            "metrics": metrics,
-        }
-
-    ead = evaluate(ead_candidates, ead_development, ead_validation, "ead_ratio", 1.5)
-    lgd = evaluate(lgd_candidates, lgd_development, lgd_validation, "lgd", 2.0)
+    lgd = train_lgd_models(
+        lgd_development,
+        lgd_validation,
+        numeric=numeric,
+        categorical=categorical,
+        seed=seed,
+    )
     decision_grade = bool(
         ead["metrics"][ead["selected_name"]]["portfolio_relative_error"] <= 0.15
         and lgd["metrics"][lgd["selected_name"]]["portfolio_relative_error"] <= 0.50
