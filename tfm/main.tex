@@ -10,213 +10,182 @@
 \usepackage{fancyhdr,hyperref,bookmark}
 
 \definecolor{navy}{RGB}{23,50,77}
-\definecolor{blue}{RGB}{31,90,138}
-\definecolor{orange}{RGB}{210,105,54}
-\definecolor{muted}{RGB}{94,106,117}
-\definecolor{pale}{RGB}{238,243,247}
-\hypersetup{colorlinks=true,linkcolor=navy,urlcolor=blue,citecolor=navy,
-  pdftitle={Modelización integral del riesgo de crédito hipotecario},
-  pdfauthor={Daniel Ladrero Meca}}
+\definecolor{blue}{RGB}{31,90,133}
+\definecolor{gold}{RGB}{184,134,11}
+\definecolor{ink}{RGB}{32,37,43}
+\definecolor{muted}{RGB}{104,114,125}
+\definecolor{pale}{RGB}{243,245,247}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=navy,
+  urlcolor=blue,
+  citecolor=navy,
+  pdftitle={Riesgo de crédito hipotecario con Freddie Mac},
+  pdfauthor={Daniel Ladrero Meca}
+}
 
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{3pt}
+\setlength{\parskip}{3.2pt}
 \setlist[itemize]{leftmargin=5mm,itemsep=1.5pt,topsep=2pt}
 \setlist[enumerate]{leftmargin=6mm,itemsep=1.5pt,topsep=2pt}
-\captionsetup{font=small,labelfont=bf,skip=3pt}
+\captionsetup{font=small,labelfont=bf,skip=3pt,justification=raggedright,singlelinecheck=false}
 \renewcommand{\arraystretch}{1.08}
-\let\originalnumberline\numberline
-\renewcommand{\numberline}[1]{\originalnumberline{#1}\hspace{0.3em}}
+\setcounter{tocdepth}{2}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcolumntype{R}{>{\raggedleft\arraybackslash}p{23mm}}
-\newcommand{\note}[1]{\par\noindent\colorbox{pale}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\small #1}}\par}
-\newcommand{\fig}[3]{\begin{figure}[H]\centering\includegraphics[width=#1\linewidth]{figures/#2}\caption{#3}\end{figure}}
+\newcommand{\callout}[2]{%
+  \par\medskip\noindent
+  \colorbox{pale}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
+    \textbf{\textcolor{navy}{#1}}\quad #2}}\par\medskip}
+\newcommand{\fig}[4]{%
+  \begin{figure}[H]\centering
+  \includegraphics[width=#1\linewidth]{figures/#2}
+  \caption{#3}\label{#4}
+  \end{figure}}
+\newcommand{\result}[1]{\textbf{\textcolor{navy}{#1}}}
+
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{\z@}%
+  {-2.4ex \@plus -0.8ex \@minus -.2ex}%
+  {1.1ex \@plus .2ex}%
+  {\normalfont\Large\bfseries\color{navy}}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+  {-1.7ex\@plus -0.6ex \@minus -.2ex}%
+  {.7ex \@plus .2ex}%
+  {\normalfont\large\bfseries\color{blue}}}
+\makeatother
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\footnotesize\textcolor{muted}{TFM -- Riesgo de crédito hipotecario}}
-\fancyhead[R]{\footnotesize\textcolor{muted}{Daniel Ladrero Meca -- 2026}}
+\fancyhead[L]{\footnotesize\textcolor{muted}{TFM \textbar{} Riesgo de crédito hipotecario}}
+\fancyhead[R]{\footnotesize\textcolor{muted}{Daniel Ladrero Meca \textbar{} 2026}}
 \fancyfoot[C]{\footnotesize\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 
 \begin{document}
+\color{ink}
 \hypersetup{pageanchor=false}
 \begin{titlepage}
   \thispagestyle{empty}
-  \vspace*{15mm}
-  {\color{orange}\rule{\linewidth}{2.2pt}}\\[11mm]
-  {\fontsize{25}{29}\selectfont\bfseries\color{navy}
-  Modelización integral del riesgo\\de crédito hipotecario\par}
-  \vspace{7mm}
-  {\Large Solución software, backtesting temporal y componentes de pérdida con Freddie Mac\par}
+  \vspace*{13mm}
+  {\color{gold}\rule{\linewidth}{2.4pt}}\\[12mm]
+  {\fontsize{27}{31}\selectfont\bfseries\color{navy}
+  Riesgo de crédito hipotecario\\con Freddie Mac\par}
+  \vspace{8mm}
+  {\Large Evidencia fuera de tiempo, solución software auditable\\
+  y límites para la decisión\par}
   \vfill
   \begin{tabular}{@{}ll@{}}
     \textbf{Trabajo Fin de Máster} & Data Science, Big Data y Business Analytics \\
     \textbf{Autor} & Daniel Ladrero Meca \\
     \textbf{Curso} & 2025--2026 \\
-    \textbf{Fecha de cierre} & 22 de agosto de 2026 \\
+    \textbf{Fecha de cierre} & 24 de agosto de 2026 \\
   \end{tabular}
   \vfill
-  \note{Estudio académico retrospectivo. La solución no es un sistema de concesión, provisiones, capital regulatorio ni pricing. Antes de cualquier uso real requiere datos bancarios autorizados, validación independiente y aprobación de gobierno.}
-  \vspace{10mm}
-  {\color{orange}\rule{\linewidth}{2.2pt}}
+  \callout{Alcance}{Estudio académico retrospectivo sobre préstamos ya originados y adquiridos por Freddie Mac. La solución analiza riesgo de cartera; no concede crédito, fija precios ni calcula provisiones o capital regulatorio.}
+  \vspace{8mm}
+  {\color{gold}\rule{\linewidth}{2.4pt}}
 \end{titlepage}
 
 \hypersetup{pageanchor=false}
 \pagenumbering{roman}
 \hypersetup{pageanchor=true}
+\begingroup
+\small
+\setlength{\parskip}{0pt}
+\makeatletter
+\renewcommand{\numberline}[1]{\hb@xt@2.2em{#1\hfil}}
+\makeatother
 \tableofcontents
-\vspace{5mm}
+\vspace{3mm}
 \subsection*{Convenciones de lectura}
-PD designa la probabilidad de incumplimiento a 24 meses; EAD, la exposición en el momento del evento; LGD, la fracción de pérdida condicionada al evento; y EL, la pérdida esperada, calculada como $PD\times EAD\times LGD$. Distingo asociación predictiva, sensibilidad y causalidad. Las cifras empíricas proceden de una ejecución cerrada sobre datos Freddie Mac, con manifiesto y hashes verificables; los folds walk-forward disponibles públicamente prueban el software con datos sintéticos y no se presentan como evidencia Freddie.
-\vfill
-\note{La memoria contiene la evidencia esencial, las tablas y los gráficos del estudio; el código reproduce transformaciones, modelos y controles. No se entrega vídeo.}
+PD designa la probabilidad de incumplimiento a 24 meses; EAD, la exposición en el evento; LGD, la fracción de pérdida una vez resuelto el incumplimiento; y EL, la pérdida esperada, calculada como $PD\times EAD\times LGD$. Se distinguen tres niveles de evidencia: el holdout Freddie real, la verificación sintética del motor walk-forward y la ejecución Freddie walk-forward todavía pendiente. Las cifras monetarias se expresan en millones de dólares (MUSD).
+\endgroup
 
 \clearpage
 \hypersetup{pageanchor=false}
 \pagenumbering{arabic}
 \hypersetup{pageanchor=true}
+
 \section{Resumen ejecutivo}
 
-Este trabajo estudia hasta qué punto es posible construir, con datos públicos y trazables, una visión integrada del riesgo de crédito hipotecario. El interés no reside únicamente en predecir qué préstamos pueden incumplir. Una estimación de riesgo solo resulta útil si distingue correctamente entre clientes, aproxima el nivel absoluto de pérdida, se mantiene estable cuando cambia el entorno y reconoce cuándo la evidencia disponible deja de ser suficiente. Por eso la pregunta central no es cuál es el algoritmo más complejo, sino qué conclusiones pueden defenderse con los datos observados y cuáles deben quedar expresamente fuera del alcance.
+Este trabajo evalúa hasta dónde puede llegar una solución reproducible de riesgo de crédito hipotecario construida con datos públicos de Freddie Mac. La pregunta central no es qué algoritmo obtiene la métrica más alta, sino qué usos permite realmente la evidencia. La conclusión es nítida: los datos sostienen una capacidad útil para ordenar el incumplimiento y una EAD agregada estable, pero no un motor decisorio. La PD pierde calibración, LGD carece de madurez suficiente y la deriva activa una puerta de bloqueo.
 
-La fuente hipotecaria es el \textit{Single-Family Loan-Level Dataset} de Freddie Mac \cite{freddie_data,freddie_guide}. Analizo una cohorte Q1 anual entre 2015 y 2022: 3.861.577 préstamos en los ficheros de origen, una muestra determinista máxima de 50.000 por año y 399.800 observaciones elegibles. Identifico 6.181 eventos a 24 meses, equivalentes al 1,546\%. La evidencia real ejecutada es un holdout fuera de tiempo: desarrollo con 2015--2018, calibración en 2019, validación en 2020 y prueba final en 2021--2022. El desglose de ese test por 2021 y 2022 ayuda a diagnosticar estabilidad, pero no constituye dos backtests independientes.
+La fuente reúne 3.861.577 préstamos de originación en ocho cohortes del primer trimestre entre 2015 y 2022. Una muestra determinista de hasta 50.000 préstamos por año produce 399.800 observaciones elegibles y 6.181 eventos a 24 meses, una tasa del 1,546\%. La ejecución empírica utiliza desarrollo 2015--2018, calibración 2019, validación 2020 y prueba final 2021--2022 para PD. EAD y LGD emplean calendarios propios porque la exposición madura al producirse el default y la pérdida solo cuando finaliza la resolución.
 
-La mejora software principal es un motor walk-forward con cortes de madurez \textit{as-of} para 2020, 2021 y 2022, desarrollo expansivo y selección aislada del test. El código filtra cada etiqueta por su fecha de disponibilidad y devuelve estados por componente, sin una nota global de aprobado. Los tres folds han sido ejercitados con 6.000 observaciones sintéticas para verificar contratos y reproducibilidad. El compacto Freddie de la ejecución histórica precede a las nuevas columnas temporales y debe regenerarse antes de atribuirle resultados walk-forward reales. Esta distinción evita convertir una capacidad implementada en evidencia todavía no obtenida.
-
-La tesis que emerge es doble. En primer lugar, existe señal predictiva suficiente para ordenar el riesgo: la PD logística calibrada obtiene un AUC de 0,7763 y un KS de 0,4205 en test. En segundo lugar, esa capacidad de ordenación no permite afirmar que las probabilidades sean directamente utilizables. La PD media predicha es 2,567\%, frente a un incumplimiento observado de 1,035\%. El modelo diferencia perfiles, pero sobreestima el nivel medio. Esta separación entre \textit{ranking} y calibración es esencial: una herramienta puede ser informativa para análisis y, al mismo tiempo, inadecuada para pricing, provisiones o decisiones individuales.
+La solución aporta además un motor walk-forward con cortes \textit{as-of} para 2020, 2021 y 2022. Sus ventanas, filtros de madurez y estados por componente se han verificado de extremo a extremo con 6.000 observaciones sintéticas. El compacto Freddie histórico no contiene las cuatro fechas de disponibilidad necesarias y debe regenerarse antes de ejecutar esos folds con datos reales. Por tanto, la capacidad software está demostrada; el rendimiento walk-forward Freddie todavía no.
 
 \begin{table}[H]\centering\small
-\begin{tabularx}{\linewidth}{@{}YRR@{}}\toprule
-Componente & Resultado fuera de tiempo & Interpretación \\\midrule
-PD logística calibrada & AUC 0,7763; Brier 0,01048 & Señal útil con sobreestimación media \\
-EAD HGB & error agregado 2,00\% & Adecuado para agregación académica \\
-LGD hurdle & error agregado 21,37\%; $n=60$ & Métrica favorable, muestra insuficiente \\
-Pérdida esperada & 107,95 MUSD; 0,3911\% de EAD & Integración ilustrativa \\
-Deriva & PSI del tipo 2,349 & Promoción bloqueada \\\bottomrule
+\begin{tabularx}{\linewidth}{@{}p{29mm}p{52mm}Y@{}}\toprule
+Componente & Evidencia fuera de tiempo & Lectura permitida \\\midrule
+PD logística & AUC 0,7763; KS 0,4205; Brier 0,01048 & Ranking útil; nivel absoluto descalibrado \\
+EAD HGB & error agregado 2,00\%; WAPE 2,36\% & Aproximación agregada estable \\
+LGD hurdle & error agregado 21,37\%; WAPE 105,67\%; $n=60$ & Evidencia insuficiente \\
+EL modelizada & 108,12 MUSD; 0,3917\% de EAD & Sensibilidad analítica, no cifra bancaria \\
+Deriva & PSI del tipo de interés 2,349 & Promoción bloqueada \\\bottomrule
 \end{tabularx}
-\caption{Síntesis de la ejecución real.}
+\caption{Resultado ejecutivo de la ejecución Freddie real.}
 \end{table}
 
-La elección de la regresión logística frente al modelo no lineal es también un resultado del estudio. En validación, la logística obtiene Brier 0,033088, log-loss 0,142694 y AUC 0,7122, frente a 0,033108, 0,143450 y 0,7091 del HGB. La diferencia es pequeña, pero consistente con el criterio de no introducir complejidad si no aporta mejora fuera de tiempo. El candidato que incorpora variables macroeconómicas alcanza Brier 0,033105 y AUC 0,7106, por lo que tampoco justifica su promoción. Las variables macro conservan valor para interpretar cohortes y construir escenarios, pero su plausibilidad económica no sustituye la evidencia predictiva.
+En PD, la regresión logística obtiene en validación Brier 0,033089, log-loss 0,142701 y AUC 0,7121, frente a 0,033108, 0,143450 y 0,7091 de HGB. La diferencia es pequeña, pero favorece al modelo más sencillo en los tres criterios de selección. En el test de 99.955 préstamos y 1.035 eventos, la logística alcanza AUC 0,7763, KS 0,4205 y PR-AUC 0,03574. Sin embargo, su PD media es 2,571\%, frente al 1,035\% observado: el modelo ordena el riesgo, pero lo sobreestima aproximadamente 2,48 veces.
 
-EAD ofrece el resultado más robusto desde una perspectiva agregada: sobre 2.779 defaults de test, el error del total es 2,001\%, con WAPE 2,357\% y MAE 0,02324. Esto permite aproximar la exposición de una cartera académica, aunque no valida automáticamente cada predicción individual. LGD presenta el límite opuesto. El modelo \textit{hurdle} obtiene un error agregado de 21,37\% en test, pero solo existen 60 resoluciones maduras. Además, su WAPE es 105,67\%, señal de una dispersión individual elevada. La cifra agregada puede parecer aceptable y, sin embargo, descansar sobre una base demasiado estrecha para una decisión estable.
+EAD es el componente con evidencia más consistente. Sobre 2.779 defaults de test, el error agregado es 2,001\%, el WAPE 2,357\% y el MAE 0,02324. LGD presenta el límite opuesto: el modelo hurdle obtiene 21,37\% de error agregado, pero solo existen 60 resoluciones de prueba y el WAPE alcanza 105,67\%. La integración produce una EL de 108,12 MUSD, el 0,3917\% de 27.601,36 MUSD de EAD modelizada; su lectura es indicativa porque hereda la sobreestimación de PD y la incertidumbre de LGD.
 
-Al integrar los tres componentes, la pérdida esperada asciende a 107,95 MUSD, el 0,3911\% de una EAD modelizada de 27.601,36 MUSD. Esta cantidad debe leerse como una integración analítica, no como una provisión contable o una exigencia de capital. La incertidumbre de LGD y la sobreestimación media de PD se transmiten al producto $PD\times EAD\times LGD$; una fórmula coherente no elimina las debilidades de sus factores.
+Los escenarios hacen visible el intercambio entre volumen y riesgo. En la política base, la tasa EL/EAD aumenta de 0,337\% en el estado observado a 0,571\% en el severo, mientras la retención desciende de 96,40\% a 64,60\%. La pérdida absoluta no es monotónica porque cambia también la exposición retenida. El PSI 2,349 del tipo de interés confirma, además, que el entorno de prueba difiere sustancialmente del de desarrollo.
 
-Los escenarios ayudan a razonar sobre el equilibrio entre volumen y riesgo. En la política base, la tasa EL/EAD aumenta de 0,337\% en el escenario observado a 0,570\% en el severo, mientras la retención desciende de 96,42\% a 64,68\%. La EL absoluta pasa de 90,18 a 106,10 MUSD y no sigue una trayectoria monotónica porque el escenario severo también reduce la exposición retenida. Por tanto, una pérdida total menor no implica necesariamente menor riesgo: puede ser el resultado de mantener menos negocio.
+\callout{Decisión}{La solución es útil para investigación, comparación y gobierno, pero queda \textbf{no apta para decisión}. Antes de cualquier uso real se requieren recalibración reciente de PD, más recuperaciones maduras, ejecución walk-forward Freddie, datos bancarios autorizados y validación independiente.}
 
-La conclusión ejecutiva es deliberadamente prudente: la solución software integra los componentes y ya soporta backtesting temporal, pero el modelo queda \textbf{no apto para decisión}. EAD satisface los límites definidos para el ejercicio; LGD dispone de solo 36 resoluciones en validación y 60 en test, por debajo del mínimo de 100 fijado para cada periodo; la PD necesita recalibración; y el tipo de interés presenta un PSI crítico de 2,349. Para un uso bancario serían necesarios datos de solicitud y decisión, ingresos verificados, detalle de bureau, pricing, pagos, recuperaciones, costes, garantía actualizada, definición contable y validación independiente. El principal resultado no es ocultar estas carencias, sino convertirlas en condiciones explícitas de uso y en puertas objetivas de gobierno.
-
-\note{Lectura ejecutiva: la evidencia es sólida para afirmar que existe capacidad de ordenación y que EAD funciona en agregado; es indicativa para cuantificar pérdida esperada; y es insuficiente para promover LGD o utilizar el sistema en decisiones reales.}
-
-\clearpage
 \section{Contexto, motivación y objetivos}
 
-En banca, una decisión hipotecaria combina acceso al crédito, solvencia, rentabilidad ajustada a riesgo, explicabilidad, estabilidad y cumplimiento. Estos objetivos pueden entrar en conflicto. Una PD con buena AUC puede estar mal calibrada; una EAD correcta no compensa una LGD mal definida; una política conservadora puede reducir pérdida a costa de destruir volumen y margen. El análisis requiere, por tanto, separar el rendimiento estadístico de la utilidad para una finalidad concreta.
+Una decisión hipotecaria exige distinguir entre tres capacidades que suelen confundirse: ordenar clientes por riesgo, estimar el nivel absoluto de pérdida y mantener ambas propiedades cuando cambia el entorno. Una AUC favorable no garantiza probabilidades calibradas; una EAD estable no compensa una LGD inmadura; y una política con menor pérdida total puede haber reducido simplemente el volumen de negocio. El estudio separa estas dimensiones mediante una cadena reproducible desde el dato y la etiqueta hasta la validación y el gobierno.
 
-Esta separación motiva el enfoque del trabajo. Un modelo no se evalúa solo por su capacidad de producir una probabilidad, sino por la cadena de razonamiento que une dato, definición, validación y decisión. Si la definición de default no coincide con la finalidad de negocio, si la muestra de LGD no contiene resoluciones maduras o si el entorno de test difiere del de desarrollo, una buena métrica aislada puede resultar engañosa. El estudio pretende hacer visibles esas dependencias en lugar de resumir todo el sistema en una cifra única.
+Freddie Mac observa préstamos ya originados y adquiridos, no solicitudes, denegaciones ni el embudo completo de decisión. El modelo aprende dentro de una población seleccionada por criterios que no reconstruye. Por ello caracteriza riesgo de cartera y retención hipotética; no estima el efecto de aprobar a un solicitante, no demuestra equidad individual y no permite trasladar automáticamente los resultados a una entidad española. Tampoco dispone de margen, coste de financiación, capital, garantías actualizadas ni contabilidad de recuperaciones.
 
-Freddie Mac contiene préstamos ya adquiridos, no el embudo completo de solicitudes. Por ello estudio riesgo de cartera y retención hipotética, no aprobación, denegación ni equidad individual. Tampoco afirmo que una muestra de hipotecas estadounidenses sea representativa de una cartera bancaria española. Esta delimitación evita responder con el dataset a preguntas que el dataset no observa y constituye una condición de validez, no una mera advertencia formal.
+La aportación combina tres elementos. Primero, una evaluación fuera de tiempo de PD, EAD, LGD y EL sobre poblaciones definidas según la madurez de cada outcome. Segundo, una capa de escenarios, interpretabilidad y deriva que traduce métricas en condiciones de uso. Tercero, un motor walk-forward con filtros \textit{as-of}, estados por componente y trazabilidad reproducible. La aportación software se separa expresamente de la evidencia aún pendiente sobre folds Freddie reales.
 
-\subsection*{Preguntas de investigación}
-
-El trabajo plantea siete preguntas. Primera, si la información de originación ordena el incumplimiento a 24 meses fuera de tiempo. Segunda, si las probabilidades están bien calibradas. Tercera, si EAD y LGD pueden estimarse con evidencia suficiente. Cuarta, si la EL integrada admite una interpretación bancaria. Quinta, si la macroeconomía mejora la predicción o aporta principalmente sensibilidad. Sexta, qué intercambio entre volumen y riesgo revelan las políticas simuladas. Séptima, si es viable un backtesting temporal repetido por componente y qué controles deben bloquear su uso cuando faltan madurez o cobertura.
-
-Las respuestas no son intercambiables: ranking no implica calibración, EAD no compensa una LGD inmadura, una sensibilidad no es un pronóstico y un fold evaluable no aprueba el sistema completo. Esta correspondencia permite graduar las conclusiones por fuerza de evidencia.
-
-\subsection*{Objetivo general}
-
-Mi objetivo es construir una solución software de riesgo crediticio sobre Freddie Mac que estime PD, EAD y LGD, integre pérdida esperada, simule sensibilidades y produzca evidencia temporal reproducible de rendimiento, limitaciones y gobierno.
-
-\subsection*{Objetivos específicos}
+\subsection{Preguntas}
 
 \begin{enumerate}
-  \item Preparar cohortes de originación con horizonte de 24 meses, sin fuga temporal y con muestreo reproducible.
-  \item Comparar una referencia interpretable y un modelo no lineal para PD, priorizando calibración y estabilidad temporal.
-  \item Estimar EAD y LGD sobre poblaciones condicionadas al evento y medir error individual y agregado.
-  \item Integrar $EL_i=\widehat{PD}_i\widehat{EAD}_i\widehat{LGD}_i$ sin presentarla como provisión o capital.
-  \item Evaluar políticas de retención y shocks macro bajo supuestos transparentes.
-  \item Incorporar backtesting walk-forward, explicabilidad, deriva, identidad de datos, pruebas y una memoria reproducible en LaTeX.
+  \item \textbf{Validez predictiva de PD.} ¿Hasta qué punto la información disponible en originación ordena el incumplimiento fuera de tiempo, estima bien su nivel absoluto y obtiene valor incremental de la macroeconomía?
+  \item \textbf{Cuantificación de pérdida.} ¿Con qué fuerza empírica pueden estimarse EAD y LGD e integrarse en una pérdida esperada interpretable?
+  \item \textbf{Aptitud para decisión y seguimiento.} ¿Qué revelan políticas, escenarios, interpretabilidad, deriva y backtesting sobre los usos permitidos y las condiciones que deben bloquear el modelo?
 \end{enumerate}
 
-Adopto PD/EAD/LGD como lenguaje de riesgo del marco de Basilea, no como pretensión de cumplimiento IRB \cite{bis_cre32}. También aplico una lógica de riesgo de modelo proporcional a finalidad y materialidad: desarrollo, validación, análisis de resultados, seguimiento y bloqueo cuando la evidencia es insuficiente \cite{fed_mrm,ecb_models}. El resultado es un marco de backtesting inspirado en estándares y expectativas supervisoras, proporcional al uso analítico y sin pretensión de autorización IRB ni sustitución de validación institucional.
+Estas preguntas gobiernan el orden del documento. La primera separa discriminación y calibración; la segunda evita que una buena EAD oculte una LGD débil; la tercera exige transformar las métricas en una decisión de gobierno. El objetivo operativo es construir una solución software auditable, no declarar apto un modelo por acumulación de indicadores favorables.
 
-Los datos internos ausentes afectan desde el primer objetivo. Para modelar una decisión real necesitaría fecha de solicitud, producto ofrecido, decisión, motivo de denegación, versión de política, excepción manual y autoridad aprobadora. Sin ellos no puedo estimar selección, sesgo de aprobación ni efecto de una regla sobre demanda. Tampoco puedo saber cómo habría cambiado el comportamiento si una política distinta hubiera alterado precio, importe o aceptación del cliente.
+Se adopta PD/EAD/LGD como lenguaje de riesgo del marco de Basilea, sin pretensión de cumplimiento IRB \cite{bis_cre32}. Del mismo modo, la disciplina de desarrollo, validación, seguimiento y bloqueo se inspira en gestión de riesgo de modelo \cite{fed_mrm,ecb_models}, pero no sustituye una validación institucional. El criterio de éxito es producir evidencia reproducible, reconocer sus límites y detener la promoción cuando falle una condición material.
 
-El criterio de éxito del estudio no consiste, por tanto, en declarar apto el modelo. Consiste en producir evidencia reproducible, distinguir los usos que esa evidencia permite y detener la promoción cuando falla una condición material. Desde esta perspectiva, una conclusión negativa sobre el uso decisorio es un resultado de investigación: muestra que el gobierno del modelo funciona y que no se fuerza una recomendación más allá del dato.
+\callout{Tesis}{Con datos públicos de Freddie Mac es posible ordenar el riesgo de incumplimiento fuera de tiempo y estimar EAD de forma agregada, pero no construir todavía un motor decisorio: la descalibración de PD, la inmadurez de LGD y la deriva bloquean el uso, mientras el walk-forward real sigue pendiente de regenerar la evidencia Freddie.}
 
-\note{Hipótesis de trabajo: los datos públicos pueden sostener un prototipo analítico y una disciplina de validación, pero no reemplazan el contexto de originación, recuperación y contabilidad de una entidad.}
-
-\clearpage
 \section{Fuentes, derechos de uso y privacidad}
 
-\subsection*{Freddie Mac}
+\subsection{Fuente, población y derechos}
 
-El \textit{Single-Family Loan-Level Dataset} publica un fichero de originación y otro de rendimiento mensual. La versión Release 47 documenta 31 campos de originación y 35 de performance \cite{freddie_guide}. Uso, entre otros, saldo, tipo, plazo, FICO, DTI, LTV, CLTV, ocupación, finalidad, estado, mora, saldo mensual, códigos de liquidación, recuperaciones, gastos y pérdida realizada. Valido el ancho real de ambas estructuras antes de procesar.
+El \textit{Single-Family Loan-Level Dataset} publica información de originación y rendimiento mensual de hipotecas unifamiliares adquiridas por Freddie Mac \cite{freddie_data,freddie_guide}. Se utilizan saldo, tipo, plazo, FICO, DTI, LTV, CLTV, ocupación, finalidad, estado, mora, saldo mensual, códigos de liquidación, recuperaciones, gastos y pérdida realizada. El ancho y el esquema de los ficheros se validan antes de procesar.
 
-Los términos permiten determinados resultados académicos públicos, no comerciales y agregados, pero restringen la redistribución del dataset y de productos que permitan reconstruirlo \cite{freddie_terms}. Por ello no publico ZIP, filas, identificadores ni el compacto analítico. El revisor que requiera reproducción real debe disponer de acceso autorizado; el repositorio entrega solo código, configuración, pruebas y la fuente LaTeX de esta memoria. Esta decisión limita la reproducción inmediata por terceros, pero protege el cumplimiento de los términos de uso y mantiene verificable el proceso mediante manifiestos, hashes y configuración.
+Los términos permiten determinados resultados académicos públicos, agregados y no comerciales, pero restringen la redistribución del dataset \cite{freddie_terms}. Por ello los ZIP, las filas, los identificadores y el compacto analítico permanecen fuera del repositorio. La memoria contiene únicamente agregados no reconstructivos; el revisor autorizado puede verificar identidad mediante manifiestos, tamaños y hashes.
 
-Desde el punto de vista analítico, la fuente describe préstamos que superaron procesos de selección previos y fueron adquiridos por Freddie Mac. No representa a toda la población que solicitó financiación ni a todos los préstamos originados en Estados Unidos. Las relaciones observadas están condicionadas por criterios de admisión, producto, canal y mercado que el dataset no reconstruye. En consecuencia, el modelo aprende riesgo dentro de una población seleccionada; extrapolarlo a solicitantes nuevos supondría ignorar un mecanismo de selección no observado.
+La muestra final contiene 399.800 préstamos elegibles de un universo de 3.861.577 y deja 200 casos censurados.
 
-\subsection*{Contexto macroeconómico}
-
-Uso dos fuentes primarias: la tasa nacional de desempleo LNS14000000 de BLS y el HPI \textit{Purchase-Only}, trimestral y desestacionalizado, de FHFA \cite{bls_api,fhfa_hpi}. Construyo desempleo de tres meses, cambio interanual del desempleo y crecimiento interanual del HPI. Aplico dos meses de retraso y una regla \textit{as-of}: la fecha disponible nunca puede ser posterior a la originación. La cobertura mínima es 99,957\%.
-
-El enlace macro se hace por tiempo disponible y, para HPI, por estado. No existe correspondencia individual entre una observación macro y un prestatario. La correlación de Spearman entre desempleo de tres meses y evento es $-0,091$ en la muestra. El signo negativo no implica que el desempleo proteja frente al incumplimiento: mezcla cohortes con distinta composición, políticas de adquisición y regímenes económicos. Es un ejemplo de por qué la intuición causal no puede inferirse de una asociación agregada. Precisamente por eso el candidato macro debe mejorar fuera de tiempo para ser promovido.
-
-Las variables macro cumplen dos funciones distintas. Como predictores, deben demostrar valor incremental frente al modelo base. Como escenario, sirven para someter la cartera a perturbaciones coherentes y observar sensibilidad. Mantener separadas ambas funciones evita conservar variables en PD solo porque tienen una narrativa económica convincente.
-
-\subsection*{Privacidad y datos bancarios necesarios}
-
-El compacto elimina identificador de préstamo, vendedor, servicer y código postal. Contiene 399.800 filas y ocupa 4.269.820 bytes comprimidos. Un manifiesto registra los ocho ZIP, instantáneas macro, tamaños y SHA-256. Esta memoria solo contiene agregados no reconstructivos.
-
-\begin{table}[H]\centering\small
-\begin{tabularx}{\linewidth}{@{}YYY@{}}\toprule
-Riesgo & Control aplicado & Límite residual \\\midrule
-Redistribución & Datos fuera de Git y sin subida remota & Acceso sujeto a términos \\
-Reidentificación & Eliminación de claves y salida agregada & No es anonimización certificada \\
-Fuga macro & Retraso y fecha \textit{as-of} & Depende del calendario de fuente \\
-Alteración & Hash por fuente, compacto y código & El hash no valida semántica \\\bottomrule
-\end{tabularx}
-\caption{Controles de derechos, privacidad e integridad.}
-\end{table}
-
-En una entidad añadiría ingreso y patrimonio acreditados, empleo, pasivos, detalle de bureau, comportamiento interno y consentimientos. Esos campos son necesarios tanto para capacidad de pago como para justificar finalidad, minimización, retención y acceso conforme al gobierno interno.
-
-La privacidad no se reduce a borrar un identificador. Combinaciones de estado, características contractuales y resultados pueden aumentar el riesgo de singularización. Por ello la memoria presenta solo agregados y no pretende certificar anonimización. El control adecuado es proporcional: minimizar campos, restringir acceso al compacto, impedir su publicación y documentar qué artefactos pueden salir del entorno autorizado.
-
-\note{Implicación para la validez: los resultados describen el comportamiento de las cohortes Freddie observadas. La transferencia a otra geografía, producto o política debe demostrarse de nuevo, no asumirse por similitud nominal.}
-
-\clearpage
 \section{Metodología y arquitectura}
 
-La arquitectura es lineal y verificable:
+\subsection{Arquitectura reproducible}
 
-\begin{center}\small
-\fbox{ZIP Freddie autorizados} $\rightarrow$ \fbox{esquema y hashes} $\rightarrow$ \fbox{muestra anual}\\[2mm]
-$\downarrow$\\[-1mm]
-\fbox{CSV.ZST privado} $\rightarrow$ \fbox{PD / EAD / LGD} $\rightarrow$ \fbox{EL y escenarios}\\[2mm]
-$\downarrow$\\[-1mm]
-\fbox{explicabilidad y drift} $\rightarrow$ \fbox{JSON agregado} $\rightarrow$ \fbox{memoria LaTeX}
-\end{center}
+La arquitectura mantiene una única dirección desde las fuentes autorizadas hasta los resultados agregados. Se seleccionan hasta 50.000 préstamos del primer trimestre de cada año mediante BLAKE2b y semilla 20260819, sin utilizar el outcome. El rendimiento mensual se recorre para construir una fila analítica por préstamo, ya sin identificadores. Configuración, manifiesto, semilla, versiones y hashes permiten saber qué dato y qué implementación produjeron cada resultado.
 
-Selecciono hasta 50.000 préstamos Q1 por año mediante un hash BLAKE2b estable de semilla 20260819. La selección no usa el outcome. Recorro todo el rendimiento mensual de cada préstamo seleccionado, agrego una fila analítica y excluyo identificadores. El lector filtra antes de convertir columnas, lo que mantiene la memoria en cientos de MB incluso con ZIP de varios GB. El muestreo anual impide que las cohortes con mayor volumen dominen mecánicamente el entrenamiento y permite comparar periodos con una base de tamaño semejante.
+\fig{0.94}{architecture_walk_forward.png}{Flujo de artefactos y ventanas del motor walk-forward. D, C, V y T representan desarrollo, calibración, validación y prueba. El diagrama distingue capacidad software de evidencia empírica. Fuente: configuración versionada del proyecto.}{fig:architecture}
 
-Defino default como primer 90+ días de mora o código de salida crediticia 02, 03, 09 o 15 entre los meses 0 y 23 desde el primer pago. Aproximo la originación como un mes antes del primer pago porque no se publica una fecha exacta. Un préstamo solo es elegible si tiene evento, salida terminal o 24 meses completos; así evito clasificar como sano un caso censurado.
+La figura \ref{fig:architecture} resume dos contratos. El primero es de privacidad: los datos licenciados permanecen en un compacto privado y solo salen métricas agregadas. El segundo es temporal: el periodo de prueba no interviene en selección o calibración. La salida final es la memoria reproducible; no existe una interfaz decisoria porque el gobierno no autoriza ese uso.
 
-La partición temporal es estricta. PD usa desarrollo 2015--2018, calibración 2019, selección 2020 y prueba 2021--2022. EAD desarrolla 2015--2018, valida en 2019 y prueba 2020--2022. LGD exige resoluciones maduras y utiliza 2015--2017, 2018 y 2019--2020 respectivamente. El test no participa en selección ni calibración.
+\subsection{Holdout Freddie y motor walk-forward}
 
-Esta separación responde a una amenaza concreta: si se mezclaran años al azar, el modelo vería durante el desarrollo observaciones muy próximas a las del test y las métricas ocultarían cambios de régimen. La prueba fuera de tiempo aproxima la pregunta operativa relevante: cómo se comporta una regla creada con información histórica cuando llegan cohortes posteriores. La consecuencia es una evaluación más exigente y más informativa sobre estabilidad.
+La ejecución Freddie real es un holdout fuera de tiempo. PD usa desarrollo 2015--2018, calibración 2019, selección 2020 y test 2021--2022. EAD utiliza desarrollo 2015--2018, validación 2019 y test 2020--2022. LGD emplea 2015--2017, 2018 y 2019--2020. Los calendarios difieren porque sus etiquetas maduran en momentos distintos; forzar una partición común reduciría evidencia o incorporaría expedientes aún abiertos.
 
-Los distintos calendarios de PD, EAD y LGD no son una inconsistencia. Cada objetivo madura en un momento diferente. La PD requiere observar 24 meses desde originación; EAD aparece en la fecha de default; y LGD exige que la resolución haya concluido y que sus recuperaciones y costes estén informados. Forzar la misma partición para los tres componentes aumentaría artificialmente el volumen de LGD mediante expedientes incompletos o reduciría innecesariamente la evidencia disponible para PD.
-
-\subsection*{Backtesting temporal y semántica as-of}
-
-El holdout anterior responde a una única prueba final. El nuevo motor añade tres cortes históricos de madurez: en cada fecha \textit{as-of} usa el extracto vigente, incorpora solo etiquetas cuya fecha de disponibilidad no supera el corte, vuelve a seleccionar el modelo con desarrollo, calibración y validación anteriores, y evalúa una cohorte futura sin emplearla en selección. Esta repetición permite observar variabilidad entre periodos y detectar degradación; el desglose anual de un mismo holdout, por sí solo, no reproduce ese proceso. Se trata de un backtesting \textit{as-of} de madurez sobre el extracto vigente, no de una reconstrucción estrictamente \textit{point-in-time} de las versiones de datos disponibles entonces. Las revisiones retrospectivas de la fuente podrían introducir información corregida con posterioridad; una validación estrictamente \textit{point-in-time} exige conservar y ejecutar snapshots o vintages archivados.
+El motor walk-forward añade tres cortes históricos. En cada uno forma un desarrollo expansivo, calibra y selecciona con cohortes anteriores y reserva un año futuro como test. Cuatro fechas controlan la disponibilidad: \nolinkurl{source_cutoff_date}, \nolinkurl{pd_label_available_date}, \nolinkurl{ead_label_available_date} y \nolinkurl{lgd_label_available_date}. Una etiqueta solo participa si ya era observable en el corte.
 
 \begin{table}[H]\centering\footnotesize
-\begin{tabularx}{\linewidth}{@{}p{18mm}p{22mm}Yp{20mm}p{20mm}p{17mm}@{}}\toprule
-Fold & As-of & Desarrollo & Calibración & Validación & Test \\\midrule
+\begin{tabularx}{\linewidth}{@{}p{19mm}p{22mm}Yp{21mm}p{21mm}p{18mm}@{}}\toprule
+Fold & Corte \textit{as-of} & Desarrollo & Calibración & Validación & Test \\\midrule
 \texttt{oot\_2020} & 01-01-2020 & 2015 & 2016 & 2017 & 2020 \\
 \texttt{oot\_2021} & 01-01-2021 & 2015--2016 & 2017 & 2018 & 2021 \\
 \texttt{oot\_2022} & 01-01-2022 & 2015--2017 & 2018 & 2019 & 2022 \\\bottomrule
@@ -224,335 +193,353 @@ Fold & As-of & Desarrollo & Calibración & Validación & Test \\\midrule
 \caption{Ventanas walk-forward implementadas.}
 \end{table}
 
-La trazabilidad descansa en cuatro fechas. \nolinkurl{source_cutoff_date} identifica el último mes de performance observado. \nolinkurl{pd_label_available_date} es el final de la ventana completa de 24 meses incluso si el evento sucede antes, evitando que la inclusión dependa del resultado. \nolinkurl{ead_label_available_date} es la fecha del saldo usado en default o de la retirada posterior cuando actúa como sustituto. \nolinkurl{lgd_label_available_date} es el máximo entre la fecha de saldo cero más tres meses y la fecha de observación del último \nolinkurl{actual_loss}. Desarrollo, calibración y validación solo admiten etiquetas disponibles en el corte \textit{as-of}; el test solo se puntúa cuando su outcome ha madurado al corte de fuente.
+El compacto histórico conserva las cifras del holdout, pero precede a esas cuatro columnas. Inferirlas después del modelado convertiría una regla de linaje en una suposición no auditable; por eso el motor devuelve \texttt{available=false} y exige regeneración. Los tres folds sí han recorrido sus contratos con 6.000 observaciones sintéticas. Esa prueba demuestra que el software filtra, entrena, evalúa y asigna estados; no informa sobre el desempeño Freddie.
 
-El motor publica métricas agregadas y un estado independiente para PD, EAD, LGD y EL. PD y EAD son viables en folds reales tras regenerar el compacto; LGD probablemente seguirá como \texttt{insufficient\_evidence} porque las 256 resoluciones maduras no soportan particiones repetidas con mínimos razonables. EL queda \texttt{unavailable} si cualquier default de test carece de exposición o recuperación madura y completa. El panel mensual necesita además particiones por \texttt{performance\_date}; separar solo por vintage de originación permite el estudio actual, pero no demuestra estabilidad por calendario. Los escenarios se excluyen porque son sensibilidades configuradas, no pronósticos históricos contrastables.
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{41mm}>{\raggedright\arraybackslash}p{42mm}Y@{}}\toprule
+Estado & Qué está ejecutado & Qué permite afirmar \\\midrule
+\result{Freddie real} & Cohortes Q1 2015--2022; holdout reservado & Métricas históricas de EDA, PD, EAD, LGD, EL, escenarios y deriva \\
+\result{Walk-forward sintético} & Tres folds; 6.000 observaciones; filtros y estados & Funcionamiento extremo a extremo del motor \\
+\result{Walk-forward Freddie pendiente} & Requiere regenerar cuatro fechas de linaje & No produce evidencia hasta ejecutar datos reales \\\bottomrule
+\end{tabularx}
+\caption{Niveles de evidencia que no deben confundirse.}
+\end{table}
 
-La ejecución pública sintética cubre 2015--2022 y prueba que los tres folds, filtros y estados funcionan sin exponer filas. No cuantifica desempeño Freddie. El compacto real existente conserva el holdout y sus cifras históricas, pero carece de estas cuatro columnas; regenerarlo es una condición previa, no un paso que pueda sustituirse infiriendo fechas después del modelado.
+El diseño es \textit{as-of} respecto a la madurez observada en el extracto vigente, no una reconstrucción \textit{point-in-time} estricta de las versiones disponibles históricamente. Si Freddie revisó datos con posterioridad, el extracto actual puede contener correcciones que entonces no existían. Una validación estricta requeriría snapshots archivados por fecha de corte. El panel mensual tampoco está preparado: para evaluar comportamiento a lo largo del calendario debe particionarse por \texttt{performance\_date}, no solo por vintage de originación.
 
-La reproducibilidad combina configuración declarativa, versiones fijadas, semilla, manifiesto, hash de implementación y pruebas automáticas. La ejecución real usa Python 3.12.13, NumPy 2.3.5, pandas 2.3.3 y scikit-learn 1.8.0. El hash del compacto es \texttt{468a7a4e...f4ae0e0e}; el del manifiesto, \texttt{197628ca...16151f7c}. Los hashes prueban identidad de artefacto, no corrección conceptual: permiten detectar que el dato o el código ha cambiado, pero no sustituyen la revisión de definiciones, población y transformaciones.
+\subsection{Puertas fijadas antes del test}
 
-La arquitectura mantiene una única dirección desde las fuentes hacia los resultados agregados. Esta simplicidad facilita localizar dónde se introduce cada supuesto. La definición de default, el tratamiento del censurado, la condición de madurez de LGD y los shocks de escenario quedan antes de la generación de la memoria y se pueden auditar sin depender de una interfaz web ni de pasos manuales ocultos.
+Los componentes no se resumen en una nota compensatoria. Antes de leer el test, cada uno se somete a una puerta de integridad, evaluabilidad y estabilidad. Una AUC favorable no puede compensar una LGD inmadura; si una condición material falla, la promoción se detiene.
 
-Una productivización bancaria exigiría además linaje campo a campo, fecha \textit{as-of} oficial, propietario, definición aprobada de default, versiones de política, overrides, reconciliación de outputs y evidencias de validación. El código deja puntos de control, pero no inventa esos procesos.
+\begin{table}[H]\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{27mm}p{74mm}Y@{}}\toprule
+Control & Condición ex ante & Consecuencia \\\midrule
+Integridad & SHA-256, esquema y fechas \textit{as-of} consistentes & Bloquear y regenerar si cambia la identidad \\
+PD & Dos clases; AUC/KS y calibración; test aislado & Diagnosticar, recalibrar o reconstruir \\
+EAD & Mínimo de 20 defaults en cada rol & Declarar insuficiente si no se alcanza \\
+LGD & Mínimo de 100 resoluciones maduras en validación y test & No promover LGD ni EL decisoria \\
+EL realizada & Cobertura madura y completa del 100\% de defaults & Estado \texttt{unavailable} si falta un caso \\
+Deriva & PSI 0,10 en advertencia y 0,25 en crítico & Investigar y congelar si es crítico \\\bottomrule
+\end{tabularx}
+\caption{Puertas de gobierno documentadas en la configuración y reglas de evaluación.}
+\end{table}
 
-\note{Decisión metodológica: se prioriza una cadena temporal y auditable frente a una comparación extensa de algoritmos. El principal riesgo del estudio no es quedarse sin candidatos, sino confundir una métrica retrospectiva con evidencia de uso futuro.}
+El sistema informa \texttt{evaluated}, \texttt{insufficient\_evidence} o \texttt{unavailable} por fold y componente. Esta semántica conserva una distinción importante: un modelo puede estar técnicamente ejecutado y, aun así, no disponer de evidencia suficiente. Con la población, el aislamiento temporal y las puertas fijadas, la primera pregunta es si PD conserva orden y nivel probabilístico fuera de tiempo.
 
-\clearpage
 \section{EDA y preparación}
 
-La muestra final contiene 399.800 préstamos de un universo de 3.861.577 filas de originación en las ocho cohortes Q1. Solo 200 casos quedan censurados. Los 6.181 eventos no se distribuyen de manera estable: 2019 concentra 2.201 (4,406\%) y 2020, 1.744 (3,490\%), mientras 2021 registra 328 (0,656\%) y 2022, 707 (1,415\%). Esta heterogeneidad hace inadecuada una partición aleatoria.
+\subsection{Distribución temporal del evento}
 
-\fig{0.79}{event_rate.png}{Tasa del evento de crédito a 24 meses por cohorte.}
-
-La figura muestra que el outcome no es una constante de la población. Entre 2019 y 2021 la tasa observada cae de 4,406\% a 0,656\%, una diferencia de casi siete veces. Parte de esa variación puede reflejar el ciclo, la composición de originaciones, el entorno de tipos, la política de adquisición y la propia maduración a 24 meses. El dato no permite atribuir el cambio a una única causa. Sí permite concluir que una media global oculta regímenes muy distintos y que la validación debe conservar el orden temporal.
-
-La ausencia de DTI es 3,224\%; FICO falta en 0,018\%; LTV y CLTV casi no tienen ausencias. EAD está ausente en el 98,454\% porque solo existe en defaults, y LGD en el 99,936\% porque exige resolución completa. Estas ausencias son estructurales, no deben imputarse como si fueran fallos ordinarios.
-
-Esta distinción cambia la unidad de análisis. PD se estima sobre préstamos elegibles, EAD sobre préstamos que han incumplido y LGD sobre incumplimientos ya resueltos. Tratar EAD o LGD como variables simplemente incompletas llevaría a imputar resultados que, por definición, todavía no existen. La reducción de 399.800 préstamos a 6.181 observaciones de EAD y 256 de LGD no es un problema técnico de valores perdidos; es el resultado económico del evento raro y del tiempo necesario para resolverlo.
-
-EAD observa 6.181 razones entre 0,130 y 1,014, sin valores negativos ni superiores a 1,5. LGD observa 256 resoluciones: 30 valores negativos, uno superior a 2 y rango $[-0,466;2,301]$. Conservo esta cola en el EDA y acoto el objetivo modelizado a $[0,2]$. Un valor negativo puede reflejar recuperaciones superiores a exposición; un valor alto puede concentrar gastos o convenciones de resolución. Sin contabilidad interna no asigno una interpretación única.
-
-LTV y CLTV muestran correlación de Spearman 0,973, por lo que evito leer sus importancias de forma aislada. Las asociaciones univariantes con default son modestas: FICO $-0,084$, tipo $0,061$, DTI $0,055$ y CLTV $0,039$. La señal predictiva surge de combinaciones y no prueba causalidad.
-
-Una correlación pequeña tampoco significa que la variable sea irrelevante. El default es infrecuente, las relaciones pueden ser no lineales y una característica puede adquirir valor al combinarse con otras. A la inversa, una importancia predictiva alta no convierte la variable en causa del evento. FICO, por ejemplo, resume información crediticia previa y puede actuar como indicador de múltiples dimensiones no observadas. La lectura correcta es predictiva y condicional al dataset.
-
-La correlación de 0,973 entre LTV y CLTV introduce además sustitución de señal: cuando dos variables contienen información casi equivalente, el modelo puede repartir su peso de forma inestable. Por ello las importancias posteriores se interpretan como evidencia global de uso de información, no como una clasificación causal precisa entre ambas ratios.
-
-No puedo evaluar representatividad frente al \textit{funnel} bancario porque faltan solicitudes rechazadas, canal, intermediario, documentación aportada, ingreso verificado, fraude, reglas de admisión y excepciones. Antes de transferir el modelo compararía cobertura, definición, distribución y outcome con una muestra bancaria autorizada.
-
-El EDA conduce así a tres decisiones metodológicas: preservar cohortes temporales, modelar cada componente sobre su población económica correcta y limitar las conclusiones a asociaciones predictivas. Estas decisiones son más relevantes para la validez del estudio que añadir nuevos algoritmos sobre una muestra mal definida.
-
-\note{Lectura del EDA: el reto principal no es limpiar unas pocas ausencias ordinarias, sino trabajar con prevalencia cambiante, objetivos condicionados y una población ya seleccionada.}
-
+\fig{0.78}{event_rate.png}{Tasa del evento de crédito a 24 meses por cohorte. La cifra sobre cada barra muestra tasa y eventos sobre observaciones elegibles. Fuente: ejecución Freddie reproducible.}{fig:event-rate}
 \clearpage
+\thispagestyle{fancy}
+
+\noindent Los 6.181 eventos no se distribuyen de forma estable: 2019 registra 2.201 (4,406\%), 2020, 1.744 (3,490\%), 2021, 328 (0,656\%) y 2022, 707 (1,415\%). La diferencia de casi siete veces entre 2019 y 2021 impide tratar el outcome como una constante y justifica preservar el orden temporal.
+
+La figura \ref{fig:event-rate} permite identificar cambio de régimen, pero no atribuirlo a una única causa. Pueden intervenir ciclo económico, composición, tipos de interés, política de adquisición y producto. Esta limitación causal no reduce la relevancia predictiva del cambio: demuestra que una media global ocultaría periodos muy distintos.
+
+\subsection{Etiquetas y madurez}
+
+Se define default como el primer episodio de 90 o más días de mora o un código de salida crediticia 02, 03, 09 o 15 durante los primeros 24 meses desde el primer pago. La originación se aproxima como un mes antes del primer pago porque la fecha exacta no se publica. Un préstamo solo entra en PD si presenta evento, salida terminal o 24 meses completos; así se evita clasificar como sano un caso todavía censurado.
+
+Las ausencias de EAD y LGD son estructurales. DTI falta en el 3,224\% y FICO en el 0,018\%, mientras EAD solo existe tras default y LGD solo tras resolución madura; por eso sus ausencias alcanzan 98,454\% y 99,936\%. La unidad de análisis se reduce de 399.800 préstamos a 6.181 observaciones EAD y 256 LGD maduras. Imputar esos outcomes como faltantes ordinarios inventaría resultados que aún no existen.
+
+EAD observa ratios entre 0,130 y 1,014. LGD contiene 256 resoluciones, 30 valores negativos, uno superior a 2 y un rango de $-0,466$ a 2,301; el objetivo modelizado se acota a $[0,2]$. Los extremos pueden reflejar recuperaciones, gastos y convenciones de liquidación, pero el dato público no permite asignarles una interpretación contable única.
+
+\subsection{Macroeconomía y amenazas de transferencia}
+
+Las variables macro se construyen con desempleo BLS y HPI estatal FHFA \cite{bls_api,fhfa_hpi}. Se aplican dos meses de retraso, una regla \textit{as-of} y cobertura mínima del 99,957\%. La correlación de Spearman entre desempleo de tres meses y evento es $-0,091$. El signo no implica protección: mezcla cohortes, políticas y regímenes. La macro se evalúa por separado como predictor y como insumo de sensibilidad, funciones que no deben confundirse.
+
+Las asociaciones univariantes con default son modestas: FICO $-0,084$, tipo 0,061, DTI 0,055 y CLTV 0,039. LTV y CLTV alcanzan correlación de Spearman 0,973 en la muestra de desarrollo. Estas cifras describen asociación, no causalidad; la correlación entre predictores también impide leer sus importancias posteriores como contribuciones independientes.
+
+La principal amenaza de validez externa es la selección previa. No se observan solicitudes rechazadas, condiciones alternativas, excepciones ni comportamiento bajo otra política. Tampoco se observan ingresos verificados, pasivos completos, bureau detallado, margen o capital. Una implantación bancaria requeriría volver a definir población, outcome y finalidad, y demostrar desempeño sobre datos autorizados del entorno de uso.
+
+\callout{Implicación}{La prevalencia cambiante, la selección previa y la madurez desigual de PD, EAD y LGD determinan el diseño temporal. No son advertencias añadidas después de modelizar, sino restricciones que definen qué evidencia puede producirse.}
+
 \section{Modelo de probabilidad de incumplimiento}
 
-Comparo regresión logística regularizada y \textit{Histogram Gradient Boosting} \cite{sk_logit,sk_hgb}. Ambos reciben únicamente variables disponibles en originación. Calibro en 2019 y selecciono en 2020 por Brier y log-loss, siempre que AUC no se deteriore materialmente. La logística gana por un margen pequeño: Brier 0,033088 frente a 0,033108; log-loss 0,142694 frente a 0,143450; AUC 0,7122 frente a 0,7091. La decisión favorece el modelo más sencillo porque el no lineal no aporta una mejora demostrada.
+\subsection{Selección sin utilizar el test}
 
-La comparación no busca declarar un ganador universal. La regresión logística ofrece una relación más fácil de revisar y una base razonable para calibración; HGB puede capturar interacciones y no linealidades, pero esa flexibilidad solo tiene valor si mejora resultados fuera de tiempo. En este caso, las diferencias son pequeñas y favorecen a la logística en los tres criterios de selección. Elegir HGB por sofisticación habría añadido complejidad sin evidencia compensatoria.
+La referencia es una regresión logística con ponderación de clases, imputación y escalado dentro del pipeline. Se compara con Histogram Gradient Boosting (HGB) como candidato no lineal \cite{sk_logit,sk_hgb}. La calibración se aprende en 2019 y la selección en 2020; el test 2021--2022 permanece reservado.
 
-Los criterios miden dimensiones diferentes. AUC y KS evalúan ordenación: si los eventos tienden a recibir puntuaciones mayores que los no eventos. Brier y log-loss evalúan la calidad de las probabilidades, penalizando el desacuerdo entre predicción y resultado. En crédito no basta con ordenar bien. El nivel absoluto condiciona precio, límites, provisiones y rentabilidad; por eso la calibración tiene un papel explícito en selección y diagnóstico.
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}YRRR@{}}\toprule
+Modelo en validación 2020 & Brier & Log-loss & AUC \\\midrule
+Logística seleccionada & 0,033089 & 0,142701 & 0,7121 \\
+HGB & 0,033108 & 0,143450 & 0,7091 \\
+Candidato macroeconómico & 0,033096 & 0,142922 & 0,7122 \\\bottomrule
+\end{tabularx}
+\caption{Selección de PD antes de abrir el test. Menor es mejor en Brier y log-loss; mayor es mejor en AUC.}
+\end{table}
 
-En prueba 2021--2022 obtengo AUC 0,7763, PR-AUC 0,03584, KS 0,4205, Brier 0,01048 y log-loss 0,05876. La PR-AUC es 3,46 veces la prevalencia de 1,035\%, por lo que existe señal útil en una clase infrecuente. La AUC es 0,7678 en 2021 y 0,7559 en 2022; el Brier pasa de 0,00670 a 0,01426 al aumentar la prevalencia.
+La logística supera a HGB en los tres criterios. El candidato macro logra un AUC apenas superior, pero empeora Brier y log-loss y la ganancia no es material ni consistente. No se promociona: añadir complejidad exige una mejora fuera de tiempo que sobreviva a más de una métrica. La macro conserva valor para escenarios, pero una narrativa económica plausible no sustituye evidencia predictiva incremental.
 
-La PR-AUC de 0,03584 puede parecer baja si se lee sin contexto. Sin embargo, en un problema con solo 1,035\% de eventos, la referencia de un clasificador sin señal coincide aproximadamente con esa prevalencia. Alcanzar 3,46 veces la base confirma capacidad de concentración del riesgo, aunque también muestra la dificultad de obtener precisión alta cuando los positivos son escasos. No debe traducirse en un umbral de aprobación sin estudiar costes de error, capacidad comercial y política de riesgo.
+\subsection{Discriminación y estabilidad}
 
-\fig{0.71}{auc_cohort.png}{AUC de PD en las cohortes de prueba.}
+El test contiene 99.955 préstamos y 1.035 eventos, una prevalencia del 1,035\%. La logística obtiene AUC 0,7763, KS 0,4205, PR-AUC 0,03574, Brier 0,01048 y log-loss 0,05879. La PR-AUC equivale aproximadamente a 3,45 veces la prevalencia, resultado relevante en una clase infrecuente.
 
-\fig{0.71}{calibration.png}{PD media y evento observado por decil en prueba.}
+\fig{0.96}{pd_diagnostics.png}{Diagnóstico de PD fuera de tiempo. A la izquierda, AUC por cohorte; a la derecha, tasa observada frente a PD media por decil. Fuente: holdout Freddie 2021--2022.}{fig:pd}
 
-La PD media de prueba es 2,567\%, superior al 1,035\% observado. El intercepto de calibración es $-0,309$ y la pendiente 1,196. Los primeros deciles muestran sobreestimación clara; por tanto la PD sirve mejor para ranking académico que para pricing, provisión o aprobación.
+La parte izquierda de la figura \ref{fig:pd} muestra que la capacidad de ordenación persiste, aunque el AUC baja de 0,7678 en 2021 a 0,7559 en 2022. El Brier aumenta al mismo tiempo de 0,00670 a 0,01426. No se trata de un colapso, pero sí de una señal de que el rendimiento no debe resumirse en una cifra conjunta ni darse por estable.
 
-El contraste entre AUC y calibración es el hallazgo central de PD. El modelo mantiene una ordenación razonable en 2021 y 2022, pero transporta un nivel de riesgo aprendido en cohortes con mayor frecuencia de evento. La caída de AUC desde 0,7678 a 0,7559 sugiere un deterioro moderado de discriminación, mientras el aumento del Brier de 0,00670 a 0,01426 refleja también el cambio de prevalencia. No existe una única métrica capaz de resumir ambos fenómenos.
+AUC y KS responden a una pregunta de orden: los eventos tienden a recibir mayor puntuación. No demuestran que una PD del 3\% corresponda a una frecuencia del 3\%. Esta distinción es decisiva porque el nivel absoluto entra directamente en pérdida esperada, política, pricing y provisión.
 
-La sobreestimación media podría corregirse mediante una nueva calibración si existiera una cohorte reciente, suficientemente madura y representativa del uso objetivo. No realizo esa corrección sobre el test porque convertiría el periodo reservado en parte del entrenamiento y produciría una evaluación optimista. Mantener el error visible es metodológicamente más honesto que ajustar retrospectivamente el resultado final.
+\subsection{La calibración bloquea el uso cuantitativo}
 
-El candidato macro selecciona HGB, pero en validación obtiene Brier 0,033105 y AUC 0,7106, peores que la logística base. No lo promociono. Las variables macro siguen siendo útiles para describir cohortes y construir sensibilidades; no fuerzo su entrada en PD por plausibilidad económica.
+La PD media predicha es 2,571\%, frente al 1,035\% observado; la razón predicho/observado es 2,48. El intercepto de calibración es $-0,309$ y la pendiente, 1,197. La parte derecha de la figura \ref{fig:pd} confirma una sobreestimación sistemática, especialmente en grupos de menor riesgo.
 
-Este resultado no demuestra que la macroeconomía carezca de relación con el crédito. Indica que, con esta construcción \textit{as-of}, este horizonte y estas cohortes, no añade una mejora predictiva suficiente. Parte del efecto macro puede estar ya incorporado en precio, composición y criterios de adquisición. También puede manifestarse después de la originación, mientras el modelo utiliza solo información disponible al inicio. La conclusión se limita al candidato evaluado.
+Recalibrar sobre el test corregiría aparentemente el problema, pero destruiría su función de evidencia independiente. La remediación correcta necesita una cohorte reciente, madura y representativa para ajustar el nivel, seguida de un nuevo periodo reservado. Hasta entonces, la puntuación puede utilizarse para investigación, segmentación y priorización analítica, no como probabilidad contractual ni como regla individual.
 
-Una PD bancaria requeriría ingreso neto verificado, antigüedad y estabilidad laboral, activos líquidos, obligaciones externas, composición completa del bureau, morosidad interna, comportamiento transaccional, producto, pricing y fecha de decisión. Sin estos datos, el modelo caracteriza préstamos adquiridos por Freddie, no capacidad individual de pago en una nueva originación.
+\callout{Respuesta a la primera pregunta}{Existe señal fuera de tiempo para ordenar el incumplimiento, pero no una estimación fiable de su nivel absoluto. La macroeconomía evaluada no aporta una mejora estable que justifique modificar el modelo base.}
 
-\note{Conclusión de PD: la evidencia es suficiente para afirmar que existe señal de ranking fuera de tiempo, pero no para utilizar la probabilidad como nivel absoluto sin recalibración y validación sobre la población objetivo.}
-
-\clearpage
 \section{Modelización de EAD, LGD y pérdida esperada}
 
-Para cada default defino $EAD=UPB_{evento}$ y modelo $EAD/UPB_{orig}$. Si el saldo del mes de evento no es positivo, uso el saldo retirado comunicado en la liquidación. Para LGD reconcilio la pérdida realizada con recuperaciones de seguro, venta, recuperaciones no aseguradas, gastos, saldo retirado e interés moroso. Solo acepto resolución crediticia completa, sin \textit{defect settlement}, y al menos tres meses anterior al cierre de performance.
+\subsection{Exposición en default}
 
-EAD y LGD responden a preguntas distintas. EAD estima cuánto queda expuesto cuando ocurre el default; LGD, qué fracción económica de esa exposición no se recupera una vez terminada la resolución. La primera depende principalmente del saldo y de la trayectoria contractual previa al evento. La segunda incorpora recuperaciones, gastos, garantía y tiempo de resolución. Esta diferencia explica por qué EAD dispone de miles de observaciones relativamente homogéneas y LGD solo de unas pocas centenas con una dispersión mucho mayor.
+EAD se define como el saldo en el evento y se modeliza mediante el ratio \texttt{EAD/UPB\_orig}. Cuando el saldo del mes de default no es positivo se utiliza el saldo retirado posterior como sustituto. La población contiene 1.201 defaults de desarrollo, 2.201 de validación y 2.779 de prueba.
 
-Modelo las ratios para separar, en lo posible, el tamaño original del préstamo de su evolución posterior. En EAD, una ratio cercana a uno significa que el default ocurre con gran parte del saldo todavía vivo. En LGD, una ratio negativa puede aparecer cuando recuperaciones y coberturas superan la exposición reconciliada, mientras una ratio alta puede reflejar costes y convenciones de liquidación. Acotar el objetivo de LGD a $[0,2]$ estabiliza el ejercicio predictivo, pero no convierte la definición pública en una LGD económica bancaria.
+En validación, HGB reduce el error agregado al 0,272\%, frente al 2,259\% de la referencia constante 1,0. En test, el total observado de ratios es 2.740,55 y el predicho 2.685,70: error agregado 2,001\%, WAPE 2,357\%, MAE 0,02324 y RMSE 0,03261.
 
-EAD dispone de 1.201 casos de desarrollo, 2.201 de validación y 2.779 de prueba. Comparo una razón constante 1,0 y HGB. En validación, HGB reduce el error agregado a 0,272\%, frente a 2,259\% de la constante. En test observa un total de razones 2.740,55 y predice 2.685,70: error agregado 2,001\%, WAPE 2,357\% y MAE 0,02324.
+Las métricas cuentan una historia coherente. El total queda ligeramente infrapredicho; el WAPE muestra que las desviaciones individuales no se cancelan de forma material; y el MAE equivale a unos 2,3 puntos de ratio. La puerta de 20 defaults se cumple con margen. EAD puede sostener agregación académica en esta muestra, aunque no queda validada para límites, colateral o exposición regulatoria de otra cartera.
 
-\fig{0.69}{ead_error.png}{EAD: error relativo del total en validación.}
+\subsection{Pérdida condicionada al default}
 
-Los tres errores de test cuentan una historia coherente. El error agregado de 2,001\% indica que el total previsto queda ligeramente por debajo del observado. El WAPE de 2,357\% mide el error absoluto acumulado respecto al volumen total y confirma que las desviaciones individuales no se cancelan de forma material. El MAE de 0,02324 significa una diferencia media aproximada de 2,3 puntos sobre la ratio EAD. En esta muestra, EAD es razonablemente estable tanto en total como préstamo a préstamo.
+LGD se calcula a partir de pérdida realizada y exposición del expediente resuelto, y se modeliza con un enfoque hurdle que separa pérdida cero o negativa de severidad positiva. La evidencia es mucho menor: 119 resoluciones en desarrollo, 36 en validación y 60 en test. En validación, el hurdle obtiene 10,32\% de error agregado, frente a 14,94\% de una media por segmento y 26,50\% de Huber.
 
-La conclusión sigue siendo proporcional a la finalidad. Un error agregado reducido permite estudiar pérdida a nivel cartera; no demuestra que la estimación sea adecuada para fijar el saldo esperado de una operación concreta. El modelo tampoco contempla productos con disposiciones futuras, límites rotativos o comportamiento contractual distinto del préstamo hipotecario observado.
+En test, la suma observada de LGD es 10,35 y la predicha 12,57. El error agregado es 21,37\%, el WAPE 105,67\%, el MAE 0,18237 y el RMSE 0,23261. El error del total puede parecer moderado porque desviaciones positivas y negativas se compensan; el WAPE revela que el desacuerdo expediente a expediente supera el total absoluto observado.
 
-LGD es mucho más limitada: 119 resoluciones en desarrollo, 36 en validación y 60 en prueba. Comparo media segmentada, Huber y hurdle. El hurdle gana en validación por error agregado 10,32\%, frente a 14,94\% y 26,50\%. En test observa un total de 10,35 y predice 12,57: error agregado 21,37\%, WAPE 105,67\% y MAE 0,18237.
+\fig{0.91}{loss_components_error.png}{Error agregado y WAPE de EAD y LGD en test. El tamaño muestral y la divergencia entre ambas métricas explican por qué los componentes reciben decisiones distintas. Fuente: holdout Freddie.}{fig:loss-components}
 
-\fig{0.69}{lgd_error.png}{LGD: error relativo del total en validación.}
+La figura \ref{fig:loss-components} evita juzgar ambos modelos con un único porcentaje. EAD combina volumen suficiente y errores agregado e individual bajos. LGD dispone de 60 casos y un WAPE superior al 100\%. No alcanza el mínimo ex ante de 100 resoluciones maduras en validación y test, por lo que su estado es \texttt{insufficient\_evidence} aunque el modelo haya podido entrenarse.
 
-LGD exige una lectura más cuidadosa. El error agregado de 21,37\% queda por debajo del límite académico del 50\%, pero el WAPE de 105,67\% revela que la suma de desviaciones absolutas supera el total de pérdida observado. El MAE de 0,18237 equivale a unos 18,2 puntos de LGD por resolución. El modelo aproxima el orden de magnitud del total, pero lo hace con errores individuales amplios y con solo 60 casos en test.
+\subsection{Pérdida esperada}
 
-La diferencia entre error agregado y WAPE se explica porque sobrepredicciones e infrapredicciones pueden compensarse al sumar. Si una resolución se sobreestima y otra se infraestima en importes parecidos, el total parece acertado aunque ninguna predicción individual sea precisa. Esta compensación puede ser aceptable para una primera aproximación de cartera con suficiente volumen; con 60 observaciones no existe base para asumir que se repetirá de forma estable.
+Para cada préstamo del test se integra
+\[
+  \widehat{EL}_i=\widehat{PD}_i\,
+  \widehat{EAD}_i\,
+  \widehat{LGD}_i .
+\]
+Sobre 99.955 préstamos, el saldo original suma 29.038,52 MUSD y la EAD modelizada, 27.601,36 MUSD. La PD media es 2,571\%, el ratio EAD medio 94,983\% y la LGD media 16,734\%. El resultado es una EL de 108,12 MUSD, equivalente al 0,3917\% de EAD.
 
-Aunque el error agregado queda bajo el límite del 50\%, impongo un mínimo de 100 casos tanto en validación como en prueba. LGD no lo alcanza y bloquea la aptitud. Esta regla evita convertir una estimación inestable en una conclusión operativa por el azar de una muestra pequeña. El umbral no garantiza validez cuando se supera, pero impide promover el componente en una situación claramente insuficiente.
+\fig{0.70}{expected_loss_cohort.png}{Pérdida esperada modelizada y tasa EL/EAD por cohorte. El importe aumenta de 38,37 MUSD en 2021 a 69,75 MUSD en 2022; la tasa pasa de 0,2798\% a 0,5022\%. Fuente: ejecución Freddie.}{fig:el}
 
-El problema no se resuelve añadiendo complejidad. Con 119 resoluciones de desarrollo, un algoritmo más flexible aumentaría el riesgo de aprender particularidades de pocos expedientes. La prioridad es observar más resoluciones maduras, reconciliar mejor los flujos y analizar sesgo de maduración. El cuello de botella está en la evidencia, no en la capacidad computacional.
+La diferencia de la figura \ref{fig:el} combina prevalencia, composición y volumen económico; no puede atribuirse a una sola causa. Más importante, el producto no es más sólido que sus factores. La sobreestimación de PD y la escasez de LGD se transmiten a EL, por lo que la cifra sirve para comparar cohortes y sensibilidades dentro del ejercicio, no como estimación decisoria.
 
-Sobre los 99.955 préstamos de test, la EAD modelizada suma 27.601,36 MUSD, la PD media es 2,567\%, la razón EAD media 94,983\% y la LGD media 16,734\%. La EL asciende a 107,95 MUSD, el 0,3911\% de EAD: 38,29 MUSD en 2021 y 69,66 MUSD en 2022.
-
-\fig{0.70}{expected_loss.png}{Pérdida esperada por cohorte de prueba, en millones de dólares.}
-
-La EL integra los componentes, pero también integra sus incertidumbres. La sobreestimación media de PD tiende a elevar el total; el buen ajuste agregado de EAD aporta estabilidad; y la escasa muestra de LGD limita la precisión. El resultado de 107,95 MUSD debe interpretarse como una respuesta a la pregunta ``¿qué pérdida produce esta combinación concreta de modelos y definiciones?'', no como una estimación normativa o contable validada.
-
-La diferencia entre 38,29 MUSD en 2021 y 69,66 MUSD en 2022 tampoco debe atribuirse a una sola causa. Cambian la prevalencia, la composición y el volumen económico. Para separar esos efectos sería necesario descomponer PD, EAD y LGD por cohorte y contrastarlos con exposiciones homogéneas. En este trabajo la comparación sirve para mostrar que el riesgo integrado varía de forma material en el tiempo.
-
-No interpreto EL como IFRS 9, provisión ni capital. Para una LGD bancaria necesitaría calendario de pagos y curas, modificaciones, redefaults, estrategia de cobro, fechas judiciales, tasaciones, cargas, seguros, flujos de venta, recobros, costes directos e indirectos, write-off, descuento temporal y reconciliación contable. Freddie mejora radicalmente el estudio frente a una fuente sin pérdidas, pero no sustituye esos flujos internos.
-
-\subsection*{Rutas secundarias: IFRS 9 y CRR3 estándar}
-
-Estas aplicaciones amplían la hoja de ruta, pero no cambian el objetivo central: una solución software de riesgo sobre Freddie Mac. El artefacto las califica solo como preparación y mantiene desactivado su uso. Para IFRS 9 podrían reutilizarse estimaciones de PD/EAD/LGD y la disciplina temporal, pero faltan staging y aumento significativo del riesgo de crédito (SICR), PD a 12 meses y de vida, escenarios \textit{forward-looking} ponderados, descuento al tipo de interés efectivo y conciliación contable. La experiencia supervisora europea subraya precisamente la necesidad de procesos robustos, escenarios, overlays y validación alrededor de ECL \cite{eba_ifrs9}.
-
-CRR3 por método estándar es una ruta distinta y basada en reglas. Requiere clasificar la exposición prudencialmente, aplicar la normativa vigente, identificar mitigación del riesgo de crédito y colateral elegible, determinar LTV y demás condiciones, y reconciliar el cálculo con reporting y gobierno \cite{crr3}. La PD académica no sustituye las ponderaciones reglamentarias del método estándar ni convierte el modelo en IRB. El proyecto puede aportar exposición, linaje y monitorización, pero no determina por sí mismo el tratamiento prudencial.
-
-Por tanto, provisiones y capital se documentan como brechas verificables, no como productos calculados mediante fórmulas triviales. Solo tendría sentido implementarlos cuando exista una política contable o prudencial aprobada, datos reconciliados y responsables capaces de validar reglas, parámetros, jurisdicción y fecha de vigencia.
-
-\subsection*{Información interna que cerraría la brecha}
-
-\begin{table}[H]\centering\footnotesize
-\begin{tabularx}{\linewidth}{@{}p{31mm}p{61mm}Y@{}}\toprule
-Dominio & Campos bancarios requeridos & Justificación \\\midrule
-Default & Cura, redefault, impago contractual, aceleración y write-off & Alinear evento, horizonte y denominador \\
-Exposición & Cuadro contractual, pagos, intereses, disposiciones y límites & Reconstruir EAD por fecha y producto \\
-Recuperación & Flujo, importe, fecha, naturaleza, seguro y tercero pagador & Descontar y reconciliar recuperaciones \\
-Garantía & Tasación, fecha, cargas, venta, mantenimiento y vía judicial & Separar valor, costes y tiempo de resolución \\
-Contabilidad & Cuenta, centro de coste, provisión, pérdida y conciliación & Conectar LGD económica con estados internos \\\bottomrule
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}p{29mm}Yp{47mm}@{}}\toprule
+Finalidad & Información adicional imprescindible & Estado actual \\\midrule
+Provisión IFRS 9 & Staging, SICR, ECL de vida, escenarios ponderados, descuento EIR y conciliación contable & No implementable con la evidencia disponible \\
+Capital regulatorio & Clasificación prudencial, mitigación, colateral elegible, exposición regulatoria y reglas vigentes & No implementable como cálculo bancario \\
+Análisis de riesgo & Definiciones reproducibles, métricas, escenarios y límites explícitos & Implementado para investigación \\\bottomrule
 \end{tabularx}
-\caption{Datos internos mínimos para validar EAD y LGD.}
+\caption{Diferencia entre la integración académica y usos bancarios regulados \cite{eba_ifrs9,crr3}.}
 \end{table}
 
-También documentaría sesgo de resolución: una LGD madura excluye expedientes aún abiertos y puede sobre-representar vías rápidas. Aplicaría análisis de supervivencia o ponderación solo después de observar fecha de entrada, estado procesal y cierre. Sin esta información, el tamaño efectivo de 256 resoluciones es una limitación estructural, no un problema que otro algoritmo pueda resolver.
+Añadir provisiones o capital como si fueran una capa de presentación empeoraría el trabajo: la carencia está en datos, definición y gobierno, no en la fórmula. La mejora útil para el objetivo principal es documentar qué outcomes, conciliaciones y controles permitirían extender la solución cuando exista información bancaria autorizada.
 
-\note{Conclusión integrada: EAD aporta evidencia sólida en agregado; LGD solo evidencia indicativa; por ello la EL es útil para estudiar mecanismos y escenarios, pero no tiene fuerza suficiente para una cifra bancaria de decisión.}
+\callout{Respuesta a la segunda pregunta}{EAD dispone de evidencia suficiente para una lectura agregada en el estudio; LGD no. En consecuencia, la EL es reproducible e interpretable como sensibilidad, pero no válida para provisiones, capital, pricing o concesión.}
 
-\clearpage
 \section{Simulación de políticas de riesgo y escenarios macroeconómicos}
 
-El simulador aplica reglas transparentes sobre préstamos ya originados; por eso hablo de retención y no de concesión. La política base y la conservadora combinan límites de CLTV, DTI y PD. Los escenarios observado, moderado y severo desplazan desempleo y HPI en magnitudes configuradas. Son sensibilidades, no previsiones ni efectos causales.
+\subsection{Sensibilidades, no pronósticos}
 
-El objetivo no es adivinar una crisis futura, sino observar cómo interactúan tres magnitudes: proporción de préstamos retenidos, exposición económica y pérdida esperada. Una política puede reducir la tasa de riesgo y, a la vez, eliminar tanto volumen que empeore la rentabilidad. También puede disminuir la pérdida absoluta simplemente porque conserva menos exposición. Por ello presento conjuntamente retención, EAD y EL, evitando interpretar cualquiera de las tres de forma aislada.
+Los escenarios modifican únicamente la PD. A partir de la probabilidad base $p_0$, el shock se aplica en log-odds:
+\[
+  p_s=\mathrm{logit}^{-1}
+  \left[\mathrm{logit}(p_0)+0,20\,\Delta U-0,02\,\Delta HPI\right].
+\]
+El escenario moderado combina $\Delta U=+2$ puntos de desempleo y $\Delta HPI=-10$ puntos; el severo, $+4$ y $-20$. Los desplazamientos de log-odds son 0,6 y 1,2. EAD, LGD, saldo, CLTV y DTI se mantienen fijos. La construcción es una sensibilidad configurada: no estima cómo evolucionará la economía ni identifica un efecto causal.
 
-\fig{0.83}{retention.png}{Retención por política y escenario.}
+Después del shock se aplican dos políticas hipotéticas. La base retiene CLTV $\leq97$, DTI $\leq50$ y PD $\leq8\%$; la conservadora exige CLTV $\leq90$, DTI $\leq43$ y PD $\leq5\%$. Al elevarse PD, algunos préstamos dejan de cumplir el umbral, de modo que cambian simultáneamente riesgo y tamaño de cartera.
 
 \begin{table}[H]\centering\footnotesize
-\begin{tabularx}{\linewidth}{@{}YYRRR@{}}\toprule
-Política & Escenario & Retención & Exposición & EL retenida \\\midrule
-Base & Observado & 96,42\% & 26.788,26 MUSD & 90,18 MUSD \\
-Base & Moderado & 86,12\% & 24.294,00 MUSD & 113,49 MUSD \\
-Base & Severo & 64,68\% & 18.605,63 MUSD & 106,10 MUSD \\
-Conservadora & Observado & 64,50\% & 17.629,84 MUSD & 45,86 MUSD \\
-Conservadora & Moderado & 53,11\% & 14.792,36 MUSD & 48,39 MUSD \\
-Conservadora & Severo & 35,46\% & 10.052,26 MUSD & 39,09 MUSD \\\bottomrule
+\begin{tabularx}{\linewidth}{@{}p{24mm}p{22mm}RRRR@{}}\toprule
+Política & Escenario & Retención & EAD (MUSD) & EL (MUSD) & EL/EAD \\\midrule
+Base & Observado & 96,40\% & 26.784,63 & 90,32 & 0,337\% \\
+Base & Moderado & 86,09\% & 24.286,04 & 113,61 & 0,468\% \\
+Base & Severo & 64,60\% & 18.581,10 & 106,08 & 0,571\% \\
+Conservadora & Observado & 64,47\% & 17.622,72 & 45,89 & 0,260\% \\
+Conservadora & Moderado & 53,07\% & 14.783,69 & 48,43 & 0,328\% \\
+Conservadora & Severo & 35,37\% & 10.027,25 & 39,03 & 0,389\% \\\bottomrule
 \end{tabularx}
-\caption{Sensibilidad conjunta de volumen, exposición y pérdida.}
+\caption{Riesgo y volumen retenido bajo políticas y shocks de PD.}
 \end{table}
 
-La política base conserva el 96,42\% de los préstamos en el escenario observado y el 64,68\% en el severo. La exposición cae de 26.788,26 a 18.605,63 MUSD, mientras la EL pasa de 90,18 a 106,10 MUSD. En el escenario moderado, la EL alcanza 113,49 MUSD, por encima del severo, porque todavía se retiene una exposición mayor de 24.294,00 MUSD. El severo concentra más riesgo por unidad, pero sobre una cartera más pequeña.
-
-La tasa EL/EAD de la política base aumenta de 0,337\% a 0,570\% entre observado y severo; en la conservadora pasa de 0,260\% a 0,389\%. La EL absoluta no es monótona porque el escenario también reduce préstamos y exposición retenidos. Una cifra menor puede significar menos negocio, no necesariamente mejor riesgo unitario.
-
-La política conservadora reduce la tasa EL/EAD respecto a la base en los tres escenarios, pero también reduce con fuerza la retención: 64,50\% en observado, 53,11\% en moderado y 35,46\% en severo. Este patrón no demuestra que sea económicamente superior. Muestra el coste de utilizar umbrales más estrictos en una cartera ya observada. Para decidir entre ambas sería necesario valorar ingresos, margen, costes, capital, prepago y respuesta comercial.
-
-El ejercicio tampoco estima qué solicitantes habrían aceptado una oferta distinta, qué operaciones no se habrían originado ni cómo cambiaría la distribución de riesgo tras aplicar una política durante varios años. Se trata de un análisis estático sobre préstamos existentes. La palabra ``retención'' preserva esta limitación: las reglas seleccionan dentro del test, pero no recrean el proceso histórico de concesión.
-
-La simulación verifica que ningún escenario crea filas, que la exposición retenida no supera la inicial y que los shocks no usan información futura. No simula demanda, competencia, prepago ni respuesta del cliente. Tampoco reproduce una política real de Freddie o de una entidad.
-
-Para decidir en banca incorporaría margen financiero, comisiones, coste de financiación, consumo y coste de capital, prima de seguro, gastos operativos, probabilidad de prepago, elasticidad comercial y límites de apetito. También necesitaría reglas vigentes, overrides y motivos de decisión. Sin esos datos puedo comparar riesgo y volumen, pero no optimizar rentabilidad ajustada a riesgo.
-
-\note{Lectura de escenarios: la severidad aumenta inequívocamente el riesgo relativo, pero la pérdida total combina riesgo y tamaño de cartera. La comparación económica requiere ambas dimensiones y una medida de rentabilidad ausente en el dato público.}
+La tasa EL/EAD aumenta con la severidad en ambas políticas. La pérdida absoluta, en cambio, alcanza su máximo en el escenario moderado y luego disminuye porque el filtro severo excluye más exposición. El descenso de 113,61 a 106,08 MUSD en la política base no representa una mejora económica espontánea; describe una cartera 23\% menor. Sin margen, demanda, costes y capital no puede elegirse una política óptima. El resultado defendible es el intercambio cuantificado entre riesgo relativo y volumen.
 
 \section{Interpretabilidad, gobierno y productivización}
 
-Calculo importancia por permutación sobre validación y sensibilidad de un perfil representativo. FICO es la variable con mayor impacto, seguida de estado, DTI, CLTV, número de prestatarios y tipo. Cambiar FICO de 725 a 788 reduce la PD del perfil 1,326 puntos; pasar de uno a dos prestatarios reduce 0,875; aumentar DTI de 27 a 42 eleva 0,652; y CLTV de 64 a 81 eleva 0,358. Estas variaciones no son efectos causales y pueden combinar relaciones incompatibles cuando los predictores están correlacionados.
+\subsection{Interpretabilidad condicionada}
 
-\fig{0.60}{importance.png}{Importancia global por permutación.}
+La importancia por permutación sitúa primero FICO, seguido de estado de la propiedad, DTI, CLTV, número de prestatarios y tipo de interés. En un perfil representativo, elevar FICO de 725 a 788 reduce la PD 1,328 puntos porcentuales; pasar de uno a dos prestatarios la reduce 0,876; aumentar DTI de 27 a 42 la eleva 0,652; CLTV de 64 a 81, 0,358; y el tipo de 3,375\% a 3,875\%, 0,352.
 
-La importancia por permutación responde a una pregunta operativa: cuánto empeora el modelo cuando se rompe la información de una variable. No indica que esa variable cause el incumplimiento ni que deba transformarse en una regla automática. En presencia de correlación, como la existente entre LTV y CLTV, una variable puede parecer menos importante porque otra conserva parte de la misma señal.
+Estas perturbaciones explican la respuesta del modelo manteniendo constantes los demás campos. No son efectos causales ni recomendaciones individuales: pueden crear combinaciones poco realistas y reparten señal entre variables correlacionadas. Su utilidad es comprobar dirección, magnitud y coherencia, y detectar resultados que requieran revisión.
 
-La sensibilidad del perfil complementa la visión global, pero sigue siendo condicional. Modificar FICO de 725 a 788 manteniendo constantes todas las demás características crea una comparación útil para entender el modelo, no necesariamente un prestatario realista. Las variaciones de 1,326, 0,875, 0,652 y 0,358 puntos permiten comprobar dirección y magnitud aproximada, pero no justifican intervenciones ni atribuciones causales.
+\subsection{Deriva y decisión de gobierno}
 
-Comparo desarrollo con test mediante PSI y Jensen--Shannon. El tipo de interés alcanza PSI 2,349 y abre alerta crítica; UPB llega a 0,185 y CLTV a 0,106, ambos en advertencia. No corrijo el drift mediante reponderación silenciosa. Primero debe distinguirse cambio legítimo de mercado, cambio de adquisición, error de dato o pérdida de soporte.
+El Population Stability Index (PSI) compara desarrollo 2015--2018 con prueba 2021--2022. Los umbrales adoptados son 0,10 para advertencia y 0,25 para estado crítico. No se repondera silenciosamente una variable que cambia; primero debe distinguirse mercado, composición, adquisición, error de dato o pérdida de soporte.
 
-\fig{0.60}{drift.png}{PSI entre desarrollo y prueba.}
+\fig{0.90}{drift.png}{PSI de las variables de originación entre desarrollo y prueba. El tipo de interés supera ampliamente el umbral crítico; saldo original y CLTV quedan en advertencia. Fuente: ejecución Freddie.}{fig:drift}
 
-El PSI 2,349 del tipo de interés no es una variación marginal. Indica que la distribución de test se encuentra muy alejada de la de desarrollo según el umbral adoptado. Esto resulta coherente con un cambio de régimen de mercado, pero el indicador no identifica su causa ni mide por sí mismo el deterioro de PD. Su función es abrir una investigación y bloquear el uso automático hasta comprobar soporte, calibración y estabilidad por segmentos.
+El tipo de interés alcanza PSI 2,349; saldo original, 0,185; y CLTV, 0,106. La magnitud del primero es coherente con un cambio de régimen, pero PSI no identifica la causa ni mide por sí solo deterioro predictivo. Sí obliga a investigar soporte, segmentos y calibración antes de promocionar el sistema. La combinación de PD sobreestimada, LGD insuficiente y deriva crítica cierra la puerta de uso.
 
-UPB y CLTV, con PSI 0,185 y 0,106, quedan en advertencia. Aunque sus cambios sean menores, afectan a exposición y garantía, dos dimensiones centrales del riesgo hipotecario. La combinación de una PD sobreestimada y una deriva crítica en tipo refuerza la necesidad de recalibrar sobre cohortes recientes antes de cualquier uso cuantitativo.
-
-\begin{table}[H]\centering\footnotesize
-\begin{tabularx}{\linewidth}{@{}p{24mm}p{54mm}Y@{}}\toprule
-Control & Umbral o evidencia & Remediación \\\midrule
-Integridad & SHA-256, esquema y fechas as-of & Bloquear y regenerar si cambia \\
-PD por fold & Dos clases; AUC/KS y calibración sin usar test en selección & Diagnosticar; recalibrar o reconstruir \\
-EAD por fold & Mínimo 20 defaults en cada rol & Ampliar muestra o declarar insuficiente \\
-LGD por fold & Mínimo 100 resoluciones maduras en cada rol & Esperar/obtener recuperaciones; no usar EL \\
-EL realizada & Cobertura madura y completa del 100\% de defaults & Mantener \texttt{unavailable} si falta un caso \\
-Deriva & PSI 0,10 advertencia; 0,25 crítico & Revisar segmentos; congelar si es crítico \\
-Entrega & Fuente LaTeX y JSON sin filas & Compilar y verificar estructura \\\bottomrule
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}p{39mm}p{31mm}Y@{}}\toprule
+Uso propuesto & Estado & Razón principal \\\midrule
+Investigación y comparación histórica & Permitido & Métricas y linaje reproducibles \\
+Seguimiento y gobierno de prototipo & Permitido con límites & Umbrales y estados por componente \\
+Concesión o denegación individual & Bloqueado & Población seleccionada y PD descalibrada \\
+Pricing & Bloqueado & Sin margen, elasticidad, coste ni capital \\
+Provisión o capital regulatorio & Bloqueado & LGD inmadura y datos normativos ausentes \\\bottomrule
 \end{tabularx}
-\caption{Puertas mínimas de gobierno.}
+\caption{Usos compatibles con la evidencia actual.}
 \end{table}
 
-Las puertas de gobierno convierten métricas en acciones. Un cambio de hash bloquea la ejecución porque no puede asegurarse identidad; una degradación de PD obliga a recalibrar o reconstruir; un fallo de EAD o LGD impide interpretar EL; y una deriva crítica congela la promoción hasta completar el diagnóstico. Los resultados se juzgan por fold y componente: \texttt{evaluated}, \texttt{insufficient\_evidence} o \texttt{unavailable}. No existe una nota global de aprobado que permita compensar una LGD inmadura con una AUC favorable. Esta lógica de análisis de resultados, seguimiento, umbrales y respuesta es consistente con una gestión proporcional del riesgo de modelo \cite{fed_mrm,ecb_models}.
+\callout{Respuesta a la tercera pregunta}{El backtesting es viable y central para el seguimiento, pero hoy solo existe un holdout Freddie y una verificación sintética del motor repetido. Las puertas convierten esa limitación, la deriva y la escasez de LGD en una decisión operativa: no promover.}
 
-La productivización actual es reproducibilidad local: configuración, dependencias fijadas, semilla, compacto autorizado, manifiesto, JSON agregado y memoria LaTeX. No requiere un servicio para consultar resultados. No implemento un API decisorio porque la puerta de gobierno está cerrada. Construir una interfaz de decisión no resolvería la insuficiencia de LGD, la recalibración pendiente ni la falta de población bancaria; solo facilitaría consumir una conclusión que todavía no debe utilizarse.
-
-En banca exigiría propietario e inventario, diccionario y linaje versionados, accesos, outcomes maduros, umbrales, overrides, incidencias, validación independiente y plan de recalibración. Estos controles determinan si la misma métrica sirve para ranking, pricing, provisión o capital \cite{fed_mrm}.
-
-La explicabilidad también depende de la finalidad. Para investigación basta con comprender patrones globales, sensibilidades y límites. Una decisión individual exigiría razones estables, comprensibles, compatibles con política y revisables por una segunda línea. El presente trabajo alcanza el primer nivel y documenta qué faltaría para el segundo.
-
-\note{Resultado de gobierno: la combinación de LGD insuficiente, PD descalibrada y deriva crítica activa correctamente el bloqueo. La decisión ``no apto'' no contradice el rendimiento técnico; lo contextualiza.}
-
-\clearpage
 \section{Resultados, conclusiones y líneas futuras}
 
-He completado una cadena desde ocho ZIP Freddie y dos fuentes macro primarias hasta PD, EAD, LGD, EL, escenarios, monitorización, backtesting temporal y memoria LaTeX. La aportación principal no es cada modelo por separado, sino la solución software y el razonamiento conjunto: definir correctamente las poblaciones, controlar la madurez \textit{as-of} sobre el extracto vigente, explicitar el límite \textit{point-in-time}, reservar periodos futuros, comparar alternativas con criterios explícitos, integrar componentes y convertir limitaciones en decisiones de gobierno.
+\subsection{Respuesta integrada}
 
-Los resultados muestran un sistema desigual por componentes. La logística calibrada supera ligeramente a HGB en validación; el candidato macro no justifica promoción; EAD reproduce el total con error de prueba 2,001\%; LGD obtiene 21,37\% de error agregado, pero con WAPE 105,67\% y solo 60 resoluciones; la PD media de 2,567\% supera el 1,035\% observado; y el tipo de interés presenta un PSI crítico de 2,349. La conclusión no puede reducirse a que ``el modelo funciona'' o ``el modelo falla'': algunas afirmaciones están bien sustentadas y otras requieren evidencia adicional.
+La primera pregunta recibe una respuesta matizada. Las variables de originación ordenan el incumplimiento fuera de tiempo: AUC 0,7763 y KS 0,4205 demuestran señal útil en 2021--2022. No estiman correctamente el nivel: la PD media de 2,571\% supera 2,48 veces el 1,035\% observado. El candidato macro no aporta una mejora consistente. Por tanto, PD sirve para ranking analítico, no para una decisión cuantitativa basada en su valor absoluto.
 
-\subsection*{Respuesta a las preguntas de investigación}
+La segunda pregunta separa los componentes de pérdida. EAD reproduce el total con error 2,001\% sobre 2.779 defaults y sostiene una lectura agregada. LGD no alcanza el mismo estándar: 60 resoluciones, WAPE 105,67\% y una puerta mínima de 100 incumplida. La EL de 108,12 MUSD integra el ejercicio de manera coherente, pero no supera las debilidades de sus factores. Es una sensibilidad de riesgo, no provisión, capital ni precio.
 
-\textbf{1. ¿Existe señal predictiva de incumplimiento? Evidencia sólida para ranking.}
+La tercera pregunta conduce al veredicto. Los escenarios muestran que riesgo y volumen se mueven conjuntamente; la interpretabilidad describe sensibilidad y no causalidad; el PSI detecta un cambio crítico del tipo de interés; y el walk-forward Freddie sigue pendiente de regenerar el linaje temporal. El sistema de gobierno actúa correctamente cuando impide que una buena AUC o EAD compense estos fallos.
 
-Sí. El test de 2021--2022 contiene 99.955 préstamos y 1.035 eventos. La PD obtiene AUC 0,7763, KS 0,4205 y PR-AUC 0,03584, equivalente a 3,46 veces la prevalencia. Estas métricas, obtenidas fuera de tiempo, muestran que las variables disponibles ordenan riesgo mejor que una clasificación sin información. La estabilidad no es completa: el AUC pasa de 0,7678 en 2021 a 0,7559 en 2022, por lo que el seguimiento por cohorte sigue siendo necesario.
+\subsection{Validez y límites}
 
-\textbf{2. ¿Las probabilidades estiman correctamente el nivel de riesgo? Evidencia contraria al uso directo.}
+La validez interna de las cifras se apoya en reglas de madurez, muestreo determinista, particiones temporales, test reservado e identidad de artefactos. No obstante, el holdout es una sola evaluación histórica, LGD contiene pocos expedientes y el extracto vigente no reproduce snapshots históricos estrictos. Estos límites acotan la fuerza de las conclusiones sin anular la evidencia que sí existe.
 
-No en el periodo de prueba. La PD media es 2,567\%, frente a una tasa observada de 1,035\%. El intercepto de calibración de $-0,309$ y la pendiente 1,196, junto con la curva por deciles, confirman sobreestimación. El modelo puede priorizar o segmentar para análisis, pero utilizar el nivel absoluto en pricing, provisiones o aprobación trasladaría un sesgo material. La respuesta adecuada es recalibrar con una cohorte reciente y representativa, no ignorar el desacuerdo porque la AUC sea aceptable.
+La validez externa es más restrictiva. Freddie Mac representa hipotecas ya originadas y adquiridas en Estados Unidos. No observa solicitantes rechazados ni condiciones alternativas, y su selección difiere de la de una entidad española. El modelo no debe trasladarse por semejanza nominal; necesita redefinición, recalibración y validación sobre la población real de uso.
 
-\textbf{3. ¿EAD y LGD permiten cuantificar la pérdida? Evidencia sólida para EAD e insuficiente para LGD.}
+\subsection{Hoja de ruta priorizada}
 
-EAD presenta un comportamiento consistente: sobre 2.779 casos de test, el error agregado es 2,001\%, el WAPE 2,357\% y el MAE 0,02324. Puede sostener una aproximación agregada en este estudio. LGD no alcanza el mismo nivel. Aunque el error total de 21,37\% queda dentro del límite académico, el WAPE 105,67\%, el MAE 0,18237 y el tamaño de 60 casos impiden considerar estable la estimación. El mínimo de gobierno de 100 observaciones en validación y test no se cumple.
+La primera prioridad es regenerar la muestra Freddie con las cuatro fechas de linaje y ejecutar \texttt{oot\_2020}, \texttt{oot\_2021} y \texttt{oot\_2022}. Incluir los cuatro trimestres, manteniendo aproximadamente 50.000 préstamos por año, mejoraría cobertura estacional. PD debe evaluarse por discriminación y calibración; EAD, por error individual y agregado. Un panel mensual posterior debe introducir cortes por fecha de performance.
 
-\textbf{4. ¿Puede interpretarse la pérdida esperada como cifra bancaria? Evidencia solo indicativa.}
+La segunda prioridad es ampliar y reconciliar recuperaciones maduras. Con 256 LGD totales y entre 11 y 42 por año, tres folds con mínimo de 100 no son sostenibles. Si una muestra mayor no alcanza la puerta, el estado correcto continúa siendo insuficiente. Solo con cobertura completa podrá contrastarse EL realizada.
 
-La integración produce 107,95 MUSD, el 0,3911\% de 27.601,36 MUSD de EAD modelizada. La cifra es reproducible bajo las definiciones del ejercicio y permite comparar cohortes, políticas y escenarios. No es una provisión, capital ni estimación IFRS 9. Hereda la sobreestimación de PD, la incertidumbre de LGD y la falta de flujos contables y de recuperación internos. Su fuerza es analítica, no normativa.
+La tercera prioridad es demostrar traslado con datos bancarios autorizados: solicitudes, decisiones y motivos, ingresos verificados, bureau, precio, margen, pagos, recuperaciones, costes y garantía actualizada. Sobre esa base se recalibraría PD en una cohorte reciente y se reservaría un nuevo test. Provisiones IFRS 9 o capital regulatorio serían extensiones posteriores, no el nuevo objetivo central.
 
-\textbf{5. ¿La macroeconomía mejora la predicción? No en el candidato evaluado; sí aporta contexto.}
+No se justifica ahora sustituir la logística por modelos más complejos. El cuello de botella está en calibración, población, LGD, linaje temporal y deriva. Solo una deficiencia medida debería abrir técnicas adicionales, como supervivencia para tiempo a default o modelos de recuperación y tiempo a resolución.
 
-El candidato macro obtiene Brier 0,033105 y AUC 0,7106 en validación, frente a 0,033088 y 0,7122 de la logística base. No existe mejora suficiente para promocionarlo. Sin embargo, desempleo y HPI permiten construir sensibilidades y explicar que el riesgo cambia con el entorno. La ausencia de ganancia predictiva no invalida su papel en escenarios; obliga a no confundir ambas funciones.
+\subsection{Contribución software y criterio de cierre}
 
-\textbf{6. ¿Qué revela la simulación de políticas? Un intercambio explícito entre riesgo y volumen.}
+El producto final no es un score de concesión, sino una cadena de evidencia. El software valida esquema e identidad, prepara cohortes sin fuga temporal, estima cada componente sobre su población elegible, integra resultados y aplica puertas de gobierno. Esta separación permite localizar el origen de una conclusión: dato, madurez, rendimiento, estabilidad o finalidad. También evita ocultar una debilidad del sistema detrás de una métrica promedio.
 
-En la política base, la tasa EL/EAD aumenta de 0,337\% a 0,570\% entre observado y severo, mientras la retención cae de 96,42\% a 64,68\%. En la conservadora, la tasa pasa de 0,260\% a 0,389\% y la retención de 64,50\% a 35,46\%. La política conservadora reduce riesgo relativo, pero no puede declararse óptima sin margen, capital, costes y comportamiento comercial. El estudio cuantifica el intercambio; no dispone de los datos necesarios para resolverlo económicamente.
+La contribución por capas y su valor para la defensa se detallan en el anexo C.
 
-\textbf{7. ¿Es viable un backtesting repetido? Sí para PD y EAD; condicionado para LGD y EL.}
+Un walk-forward Freddie completo cambiaría la fuerza de la evidencia, no el objetivo del proyecto. Permitiría observar dispersión por fold, detectar si la calibración se deteriora de forma persistente y separar un resultado excepcional de un patrón. Si PD y EAD se mantienen, la conclusión sobre ambos se reforzaría; si LGD sigue sin alcanzar madurez, el motor debe conservar el estado insuficiente. Esa capacidad de no producir una cifra cuando no corresponde es parte del resultado.
 
-El motor implementa folds 2020, 2021 y 2022, ventanas expansivas y filtros as-of, y los recorre de extremo a extremo con datos sintéticos. Para obtener evidencia Freddie debe regenerarse el compacto con linaje temporal. La población histórica ofrece volumen suficiente para intentar PD y EAD; las 256 LGD maduras no sostienen tres particiones con mínimo 100, y EL no puede contrastarse si falta una recuperación completa. En el modelo mensual el siguiente paso es separar por fecha de performance, no solo por año de originación. Esta respuesta distingue viabilidad técnica de evidencia empírica ya disponible.
+El criterio de cierre queda así vinculado a uso y no a complejidad. El prototipo está terminado como solución de investigación porque reproduce cifras, explica límites y deja una ruta verificable. No está terminado como sistema bancario porque faltan población, outcomes, calibración y gobierno institucional. Mantener ambas afirmaciones simultáneamente es la conclusión central del razonamiento.
 
-\subsection*{Juicio global y validez}
-
-La evidencia permite considerar el proyecto sólido como investigación aplicada y solución software de análisis y gobierno, pero no como motor crediticio. La validez interna de las cifras Freddie se apoya en reglas de madurez, reproducibilidad y el holdout reservado; el walk-forward real queda pendiente de regeneración. Sus límites proceden de la población seleccionada, la definición pública de los componentes, la escasez de LGD y la ausencia de información bancaria. La validez externa hacia una entidad española no está demostrada.
-
-El estado \textbf{no apto para decisión} se deriva de cuatro hechos concretos: PD descalibrada, LGD por debajo del mínimo muestral, deriva crítica del tipo de interés y falta de datos de decisión y rentabilidad. No es una cautela genérica añadida al final, sino la consecuencia de las puertas definidas antes de observar el test. El gobierno aporta valor precisamente porque evita que una métrica favorable en un componente oculte el riesgo del sistema completo.
-
-\subsection*{Líneas futuras priorizadas}
-
-La primera prioridad es regenerar la muestra Freddie con las cuatro fechas de linaje y ejecutar los tres folds, idealmente con Q1--Q4 y 12.500 préstamos por trimestre para mantener aproximadamente 50.000 al año y mejorar cobertura estacional. PD se evaluaría por discriminación y calibración; EAD por error individual y agregado. El modelo mensual debe añadir cortes por \texttt{performance\_date}. El resultado esperado no es un sello, sino una serie por fold con umbrales, incidencias y remediaciones.
-
-La segunda prioridad es ampliar recuperaciones maduras y reconciliar pagos, costes y garantía para que LGD y EL puedan backtestearse. Subir el límite de muestra aporta evidencia, pero incrementa almacenamiento y cálculo; si no alcanza el mínimo, el estado correcto sigue siendo insuficiente. La tercera es contrastar trasladabilidad con una muestra bancaria autorizada y, después, recalibrar PD sobre cohortes recientes manteniendo un nuevo periodo reservado.
-
-IFRS 9 y CRR3 estándar permanecen detrás de estas prioridades. Solo avanzaría cuando existan staging, SICR, escenarios ponderados, descuento EIR y conciliación contable para el primero; o clasificación prudencial, mitigación de riesgo, colateral elegible, reglas vigentes y reporting para el segundo. No son una reinterpretación automática de la EL académica.
-
-No cambiaría ahora la logística por un modelo más complejo. HGB no mejora la evidencia fuera de tiempo y el cuello de botella está en definición, representatividad, LGD y deriva. Solo evaluaría técnicas adicionales cuando una deficiencia medida lo justificase: supervivencia para tiempo a default, modelos de recuperación y tiempo a resolución, o restricciones monotónicas si respondieran a requisitos verificables de negocio y validación.
-
-Como profesional bancario, el aprendizaje principal es que un buen sistema cambia la pregunta. Ya no busco ``el mejor modelo'' en abstracto, sino evidencia suficiente para una finalidad concreta. En este estudio la evidencia permite análisis, comparación y aprendizaje, pero obliga a detener la promoción. Esa conclusión es técnicamente defendible porque identifica qué funciona, cuantifica qué falla y define qué información permitiría avanzar.
-
-\note{Conclusión final: señal predictiva útil, EAD agregada estable y capacidad walk-forward implementada; falta regenerar la evidencia Freddie y ampliar LGD antes de backtestear EL. La prioridad es validar en el tiempo, no añadir complejidad ni presentar rutas IFRS 9/CRR3 como sistemas terminados.}
+\callout{Conclusión final}{La solución software alcanza su objetivo como instrumento de análisis, comparación y gobierno sobre Freddie Mac. En su estado actual no debe decidir crédito: identifica señal útil, cuantifica dónde falla la evidencia y define qué información permitiría avanzar.}
 
 \clearpage
 \section{Bibliografía y anexos}
-
-\small
-\begin{thebibliography}{99}\setlength{\itemsep}{0pt}
-  \bibitem{freddie_data}\href{https://www.freddiemac.com/research/datasets/sf-loanlevel-dataset}{Freddie Mac. Single-Family Loan-Level Dataset}. Fuente y cobertura.
-  \bibitem{freddie_guide}\href{https://www.freddiemac.com/fmac-resources/research/pdf/general_user_guide_july_2026.pdf}{Freddie Mac. Single-Family Loan-Level Dataset General User Guide, Release 47}. Campos y semántica.
-  \bibitem{freddie_terms}\href{https://capitalmarkets.freddiemac.com/crt/docs/pdfs/fre_terms_conditions_sflld.pdf}{Freddie Mac. Terms and Conditions}. Uso y redistribución.
-  \bibitem{bls_api}\href{https://www.bls.gov/developers/api_signature_v2.htm}{U.S. Bureau of Labor Statistics. Public Data API}. Serie de desempleo y acceso.
-  \bibitem{fhfa_hpi}\href{https://www.fhfa.gov/house-price-index?tab=HPI+Datasets}{Federal Housing Finance Agency. House Price Index Datasets}. HPI estatal.
-  \bibitem{bis_cre32}\href{https://www.bis.org/basel_framework/chapter/CRE/32.htm}{Basel Committee on Banking Supervision. CRE32: IRB approach, risk components}. Terminología PD, EAD y LGD.
-  \bibitem{fed_mrm}\href{https://www.federalreserve.gov/supervisionreg/srletters/SR2602.htm}{Federal Reserve. SR 26-2, Revised Guidance on Model Risk Management}. Desarrollo, validación y seguimiento.
-  \bibitem{ecb_models}\href{https://www.bankingsupervision.europa.eu/ecb/pub/pdf/ssm.supervisory_guide_egim_202606.en.pdf}{Banco Central Europeo. Guide to internal models, junio de 2026}. Expectativas de validación y backtesting.
-  \bibitem{eba_ifrs9}\href{https://www.eba.europa.eu/sites/default/files/2023-11/25b12d35-9c28-4335-a589-166c77198920/Final\%20Report\%20on\%20IFRS9\%20implementation\%20by\%20EU\%20institutions.pdf}{European Banking Authority. IFRS 9 implementation monitoring report}. ECL, escenarios y gobierno.
-  \bibitem{crr3}\href{https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:32024R1623}{Reglamento (UE) 2024/1623 (CRR3)}. Método estándar y requisitos prudenciales aplicables.
-  \bibitem{sk_logit}\href{https://scikit-learn.org/stable/modules/linear_model}{scikit-learn. Logistic Regression}. Referencia interpretable.
-  \bibitem{sk_hgb}\href{https://scikit-learn.org/stable/modules/ensemble}{scikit-learn. Histogram-Based Gradient Boosting}. Candidato no lineal.
+\begin{thebibliography}{99}\small\setlength{\itemsep}{1.5pt}
+  \bibitem{freddie_data}\href{https://www.freddiemac.com/research/datasets/sf-loanlevel-dataset}{Freddie Mac. \textit{Single-Family Loan-Level Dataset}.} Fuente y cobertura.
+  \bibitem{freddie_guide}\href{https://www.freddiemac.com/fmac-resources/research/pdf/general_user_guide_july_2026.pdf}{Freddie Mac. \textit{Single-Family Loan-Level Dataset General User Guide}, Release 47.} Campos y semántica.
+  \bibitem{freddie_terms}\href{https://capitalmarkets.freddiemac.com/crt/docs/pdfs/fre_terms_conditions_sflld.pdf}{Freddie Mac. \textit{Terms and Conditions}.} Uso y redistribución.
+  \bibitem{bls_api}\href{https://www.bls.gov/developers/api_signature_v2.htm}{U.S. Bureau of Labor Statistics. \textit{Public Data API}.} Serie de desempleo y acceso.
+  \bibitem{fhfa_hpi}\href{https://www.fhfa.gov/house-price-index?tab=HPI+Datasets}{Federal Housing Finance Agency. \textit{House Price Index Datasets}.} HPI estatal.
+  \bibitem{bis_cre32}\href{https://www.bis.org/basel_framework/chapter/CRE/32.htm}{Basel Committee on Banking Supervision. \textit{CRE32: IRB approach, risk components}.} Terminología PD, EAD y LGD.
+  \bibitem{fed_mrm}\href{https://www.federalreserve.gov/supervisionreg/srletters/SR2602.htm}{Federal Reserve. \textit{SR 26-2, Revised Guidance on Model Risk Management}.} Desarrollo, validación y seguimiento.
+  \bibitem{ecb_models}\href{https://www.bankingsupervision.europa.eu/ecb/pub/pdf/ssm.supervisory_guide_egim_202606.en.pdf}{Banco Central Europeo. \textit{Guide to internal models}, junio de 2026.} Expectativas de validación y backtesting.
+  \bibitem{eba_ifrs9}\href{https://www.eba.europa.eu/sites/default/files/2023-11/25b12d35-9c28-4335-a589-166c77198920/Final\%20Report\%20on\%20IFRS9\%20implementation\%20by\%20EU\%20institutions.pdf}{European Banking Authority. \textit{IFRS 9 implementation monitoring report}.} ECL, escenarios y gobierno.
+  \bibitem{crr3}\href{https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:32024R1623}{Reglamento (UE) 2024/1623 (CRR3).} Método estándar y requisitos prudenciales.
+  \bibitem{sk_logit}\href{https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression}{scikit-learn. \textit{Logistic Regression}.} Referencia interpretable.
+  \bibitem{sk_hgb}\href{https://scikit-learn.org/stable/modules/ensemble.html#histogram-based-gradient-boosting}{scikit-learn. \textit{Histogram-Based Gradient Boosting}.} Candidato no lineal.
 \end{thebibliography}
 
-\small
-\subsection*{Ficha de reproducción}
+\appendix
+\section*{A.\quad Reproducción y trazabilidad}
+\addcontentsline{toc}{subsection}{A. Reproducción y trazabilidad}
 
 \begin{table}[H]\centering\small
 \begin{tabularx}{\linewidth}{@{}p{38mm}Y@{}}\toprule
 Elemento & Evidencia \\\midrule
 Fuente hipotecaria & Freddie Mac, ocho cohortes Q1 de 2015--2022 \\
-Universo / elegibles & 3.861.577 / 399.800 préstamos \\
+Universo / muestra & 3.861.577 registros de origen / 399.800 elegibles \\
 Eventos / LGD madura & 6.181 / 256 \\
-Partición PD & desarrollo 2015--2018; calibración 2019; validación 2020; test 2021--2022 \\
-Backtesting & Motor walk-forward 2020--2022 probado con sintético; evidencia Freddie pendiente de regeneración \\
-Compacto & 4.269.820 bytes; SHA-256 \texttt{468a7a4e...f4ae0e0e} \\
-Manifiesto & SHA-256 \texttt{197628ca...16151f7c} \\
+Compacto & 4.269.820 bytes; SHA-256 \texttt{468a7a4e0b80b3de\allowbreak c1722b27a549f0c3\allowbreak a937ddc1cf2c99aa\allowbreak 7f77ce51f4ae0e0e} \\
+Implementación & SHA-256 \texttt{30412715c2382a33\allowbreak 525acdf4b1148706\allowbreak a4160e6b7f4275c8\allowbreak 4c45229e3b3daca2} \\
+Manifiesto & SHA-256 \texttt{197628ca446cdde8\allowbreak 3d43aec7d3f847a0\allowbreak 9abad64e38eebdfe\allowbreak 76d0c75b16151f7c} \\
+Resultado agregado & SHA-256 \texttt{d89f3db233a8752b\allowbreak ce2b0a16ab99e8b0\allowbreak 50927e1627936535\allowbreak 0f60ebb72253e742} \\
 Entorno & Python 3.12.13; NumPy 2.3.5; pandas 2.3.3; scikit-learn 1.8.0 \\
-Salida & JSON agregado y memoria LaTeX; sin filas ni dependencias externas \\
-Estado & Holdout Freddie ejecutado; backtesting real pendiente; uso decisorio bloqueado \\\bottomrule
+Estado temporal & Holdout Freddie ejecutado; walk-forward real pendiente \\\bottomrule
 \end{tabularx}
-\caption{Trazabilidad mínima de la ejecución.}
+\caption{Identidad mínima de la ejecución utilizada en la memoria.}
 \end{table}
 
-\subsection*{Diccionario analítico abreviado}
+Las figuras se regeneran desde un JSON agregado explícito mediante:
+\begin{quote}\small
+\texttt{python scripts/generate\_tfm\_figures.py --input <resultado.json>\\
+\hspace*{8mm}--output-dir tfm/figures}
+\end{quote}
+El generador rechaza evidencia marcada como sintética, valida primero todos los campos necesarios y produce seis PNG deterministas. No se publican filas Freddie. La compilación de \texttt{tfm/main.tex} produce el PDF final.
 
-\begin{table}[H]\centering\footnotesize
-\begin{tabularx}{\linewidth}{@{}p{33mm}p{37mm}Y@{}}\toprule
-Variable & Momento & Uso \\\midrule
+\section*{B.\quad Variables y brechas para uso bancario}
+\addcontentsline{toc}{subsection}{B. Variables y brechas para uso bancario}
+
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}p{35mm}p{36mm}Y@{}}\toprule
+Variable & Momento de disponibilidad & Uso analítico \\\midrule
 FICO, DTI, LTV, CLTV & Originación & Capacidad, garantía y PD \\
-Saldo, tipo y plazo & Originación & Exposición, precio y sensibilidad \\
+Saldo, tipo y plazo & Originación & Exposición y sensibilidad \\
 Estado, ocupación, finalidad & Originación & Segmentación y contexto \\
 Desempleo, HPI & Disponible en fecha & Candidato macro y escenarios \\
-Mora/salida crediticia & Primeros 24 meses & Objetivo de PD \\
-Saldo en default & Mes del evento & Objetivo de EAD \\
-Pérdida y recuperaciones & Resolución madura & Objetivo de LGD \\\bottomrule
+Mora o salida crediticia & Primeros 24 meses & Etiqueta de PD \\
+Saldo en default & Mes del evento & Etiqueta de EAD \\
+Pérdida y recuperaciones & Resolución madura & Etiqueta de LGD \\\bottomrule
 \end{tabularx}
-\caption{Variables esenciales y prevención de fuga temporal.}
+\caption{Diccionario analítico abreviado y prevención de fuga temporal.}
 \end{table}
 
-La memoria entregable se organiza en los capítulos del índice y utiliza exclusivamente agregados. Para repetir el estudio real, un revisor autorizado instala las versiones bloqueadas, prepara Q1--Q4 con 12.500 préstamos por trimestre, verifica las cuatro fechas temporales y ejecuta el modo completo. Una diferencia de hash identifica una nueva ejecución y debe documentarse. La salida debe distinguir el holdout heredado, los folds realmente evaluados y cualquier componente no evaluable; el sintético solo confirma el funcionamiento del software.
+\begin{table}[H]\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{33mm}Yp{49mm}@{}}\toprule
+Finalidad potencial & Brecha principal & Evidencia necesaria \\\midrule
+Concesión & No se observan solicitantes ni denegaciones & Embudo completo, política, overrides y validación de equidad \\
+Pricing & No existe rentabilidad ajustada a riesgo & Margen, coste de financiación, capital, elasticidad y costes \\
+Provisión & EL académica sin staging ni contabilidad & SICR, escenarios ponderados, EIR y conciliación \\
+Capital & Componentes no definidos prudencialmente & Exposición regulatoria, mitigación, colateral y reporting \\
+Traslado geográfico & Población Freddie estadounidense & Muestra bancaria representativa y nuevo test reservado \\\bottomrule
+\end{tabularx}
+\caption{Brechas que impiden reutilizar directamente el prototipo.}
+\end{table}
 
-\note{No se entrega vídeo. La defensa oral y cualquier demostración audiovisual quedan fuera del alcance de esta memoria.}
+\section*{C.\quad Mapa de la solución software}
+\addcontentsline{toc}{subsection}{C. Mapa de la solución software}
+
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}p{28mm}Yp{46mm}@{}}\toprule
+Capa & Capacidad entregada & Valor para el estudio \\\midrule
+Datos & Muestreo determinista, manifiesto, hashes y salida agregada & Repetibilidad sin publicar filas \\
+Riesgo & PD, EAD, LGD y EL con poblaciones diferenciadas & Lectura conjunta sin falsa compensación \\
+Validación & Holdout real y motor walk-forward con filtros \textit{as-of} & Diagnóstico temporal y siguiente prueba definida \\
+Gobierno & Estados, umbrales, escenarios, sensibilidad y PSI & Bloqueo explicable cuando falta evidencia \\
+Documento & Fuente LaTeX, seis figuras reproducibles y PDF final & Defensa trazable desde cifra hasta conclusión \\\bottomrule
+\end{tabularx}
+\caption{Contribución de la solución software al objetivo del TFM.}
+\end{table}
+
+\section*{D.\quad Interpretabilidad agregada}
+\addcontentsline{toc}{subsection}{D. Interpretabilidad agregada}
+
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}YRR@{}}\toprule
+Variable & Importancia media & Desviación \\\midrule
+FICO de originación & 0,000418 & 0,000031 \\
+Estado de la propiedad & 0,000166 & 0,000071 \\
+DTI original & 0,000147 & 0,000017 \\
+CLTV original & 0,000134 & 0,000012 \\
+Número de prestatarios & 0,000120 & 0,000030 \\
+Tipo de interés & 0,000103 & 0,000002 \\\bottomrule
+\end{tabularx}
+\caption{Principales importancias por permutación en validación. La métrica mide pérdida de rendimiento al romper información; no efecto causal.}
+\end{table}
+
+La importancia global y la sensibilidad local responden a preguntas distintas. La primera indica cuánto utiliza el modelo la información disponible; la segunda muestra cómo cambia una predicción concreta al perturbar un campo. Ninguna identifica el efecto de intervenir sobre un prestatario. Esta cautela es especialmente relevante en FICO y en ratios de garantía correlacionadas.
 
 \end{document}
