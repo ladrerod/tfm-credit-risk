@@ -85,6 +85,7 @@ def _config(name: str) -> dict[str, object]:
 def _synthetic_data(seed: int) -> pd.DataFrame:
     generator = np.random.default_rng(seed)
     rows = []
+    source_cutoff_date = pd.Timestamp("2026-03-01")
     unemployment_by_year = {2017: 4.4, 2018: 3.9, 2019: 3.7, 2020: 8.1, 2021: 5.4, 2022: 3.7}
     hpi_by_year = {2017: 0.06, 2018: 0.055, 2019: 0.04, 2020: 0.09, 2021: 0.16, 2022: 0.11}
     for year in range(2017, 2023):
@@ -126,7 +127,7 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
                 {
                     "origination_date": origin,
                     "performance_end_date": origin + pd.DateOffset(months=24),
-                    "source_cutoff_date": origin + pd.DateOffset(months=24),
+                    "source_cutoff_date": source_cutoff_date,
                     "pd_label_available_date": origin + pd.DateOffset(months=24),
                     "default_event_date": default_event_date,
                     "ead_label_available_date": default_event_date,

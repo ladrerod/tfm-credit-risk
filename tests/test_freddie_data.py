@@ -41,12 +41,13 @@ class FreddieDataTests(unittest.TestCase):
         zero_balance_code: str = "",
         actual_loss: str = "",
         defect_settlement: str = "",
+        zero_balance_date: str | None = None,
         components: tuple[str, str, str, str, str, str] | None = None,
     ) -> str:
         row = [""] * width
         row[:6] = [loan, period, upb, delinquency, "1", "359"]
         row[8] = zero_balance_code
-        row[9] = period if zero_balance_code else ""
+        row[9] = (zero_balance_date or period) if zero_balance_code else ""
         row[6] = defect_settlement
         if components:
             mi, sale, non_mi, expenses, removal, interest = components
@@ -364,6 +365,33 @@ class FreddieDataTests(unittest.TestCase):
                 defaulted["zero_balance_date"] + pd.DateOffset(months=3),
                 defaulted["lgd_label_available_date"],
             )
+
+    def test_lgd_availability_waits_for_the_final_loss_observation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive, panel = root / "historical_data_2015Q1.zip", root / "monthly.csv.zst"
+            rows = [
+                self._performance("L1", "201503", upb="90000", delinquency="03"),
+                self._performance("L1", "201504", upb="0", zero_balance_code="09"),
+                self._performance(
+                    "L1",
+                    "201801",
+                    upb="0",
+                    zero_balance_code="09",
+                    zero_balance_date="201504",
+                    actual_loss="35000",
+                    components=("-10000", "-40000", "-5000", "5000", "80000", "5000"),
+                ),
+                self._performance("L2", "201804"),
+            ]
+            self._archive(archive, [self._origin("L1"), self._origin("L2")], rows)
+
+            loans, _ = prepare_quarter(archive, panel, sample_size=10, seed=7, compression_level=3)
+
+            defaulted = loans.loc[loans["default_24m"].eq(1)].iloc[0]
+            self.assertEqual(pd.Timestamp("2015-04-01"), defaulted["zero_balance_date"])
+            self.assertEqual(pd.Timestamp("2018-01-01"), defaulted["lgd_label_available_date"])
+            self.assertTrue(defaulted["lgd_eligible"])
 
     def test_prepares_dataset_outputs_and_lineage(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

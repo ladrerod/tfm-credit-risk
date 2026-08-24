@@ -342,9 +342,12 @@ def _loan_result(
             and exposure > 0
         )
         if lgd_candidate:
-            lgd_label_available_date = zero_balance_date + pd.DateOffset(months=3)
+            lgd_label_available_date = max(
+                zero_balance_date + pd.DateOffset(months=3),
+                _month_timestamp(int(loss.performance_number)),
+            )
         lgd_eligible = bool(
-            lgd_candidate and zero_balance_date <= cutoff_date - pd.DateOffset(months=3)
+            lgd_candidate and lgd_label_available_date <= cutoff_date
         )
         if lgd_eligible:
             lgd = amount / exposure

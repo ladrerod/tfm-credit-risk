@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pandas as pd
 import zstandard as zstd
 
-from src.pipeline import _implementation_sha256, _private_data, _private_monthly_data, run_study
+from src.pipeline import _implementation_sha256, _private_data, _private_monthly_data, _synthetic_data, run_study
 
 
 class PipelineTests(unittest.TestCase):
@@ -97,6 +97,12 @@ class PipelineTests(unittest.TestCase):
                 self.assertLessEqual(
                     first["loss_components"]["lgd"]["test_metrics"]["portfolio_relative_error"], 0.50
                 )
+
+    def test_synthetic_data_has_one_source_cutoff(self) -> None:
+        frame = _synthetic_data(seed=7)
+
+        self.assertEqual(1, frame["source_cutoff_date"].nunique())
+        self.assertEqual(pd.Timestamp("2026-03-01"), frame["source_cutoff_date"].iloc[0])
 
 
 if __name__ == "__main__":
