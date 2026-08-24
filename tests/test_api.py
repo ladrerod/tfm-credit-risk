@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
@@ -21,7 +22,7 @@ class ApiTests(unittest.TestCase):
         "number_of_borrowers": 2,
     }
 
-    def _bundle_path(self, directory: Path) -> Path:
+    def _bundle_path(self, directory: Path, *, model: object | None = None, threshold: float = 0.5) -> Path:
         features = pd.DataFrame(
             [
                 [620, 20, 70, 3.0, 1],
@@ -31,7 +32,7 @@ class ApiTests(unittest.TestCase):
             ],
             columns=PRODUCT_FEATURES,
         )
-        model = LogisticRegression(random_state=0).fit(features, [1, 1, 0, 0])
+        model = model or LogisticRegression(random_state=0).fit(features, [1, 1, 0, 0])
         bundle = {
             "bundle_version": BUNDLE_VERSION,
             "model_version": "test-five-variable-pd",
@@ -42,7 +43,7 @@ class ApiTests(unittest.TestCase):
                 name: {"type": "number", "minimum": 0.0, "maximum": 1000.0}
                 for name in PRODUCT_FEATURES
             },
-            "validation_threshold": 0.5,
+            "validation_threshold": threshold,
             "validation_metrics": {},
             "target": "default_24m",
             "horizon_months": 24,
@@ -116,6 +117,7 @@ class ApiTests(unittest.TestCase):
                 {"json": {**self.payload, "origination_fico": None}},
                 {"json": {**self.payload, "origination_fico": float("nan")}},
                 {"json": {**self.payload, "origination_fico": float("inf")}},
+                {"json": {**self.payload, "origination_fico": int("9" * 400)}},
                 {"json": {**self.payload, "origination_fico": -1}},
                 {"json": {**self.payload, "origination_fico": 1001}},
             ]
@@ -124,6 +126,60 @@ class ApiTests(unittest.TestCase):
                     response = client.post("/predict", **request)
                     self.assertEqual(400, response.status_code)
                     self.assertEqual({"error": "invalid request"}, response.get_json())
+
+    def test_predict_rejects_duplicate_json_keys_before_flask_collapses_them(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            response = self._client(Path(directory)).post(
+                "/predict",
+                data=(
+                    '{"origination_fico":700,"origination_fico":700,"original_dti":30,'
+                    '"original_cltv":80,"original_interest_rate":4.5,"number_of_borrowers":2}'
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(400, response.status_code)
+        self.assertEqual({"error": "invalid request"}, response.get_json())
+
+    def test_predict_treats_nonfinite_model_output_as_an_internal_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._bundle_path(Path(directory), model=ProbabilityModel(float("nan")))
+            from src.api import create_app
+
+            response = create_app(path).test_client().post("/predict", json=self.payload)
+
+        self.assertEqual(500, response.status_code)
+        self.assertEqual({"error": "internal server error"}, response.get_json())
+
+    def test_predict_treats_model_exceptions_as_an_internal_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._bundle_path(Path(directory), model=ProbabilityModel(RuntimeError("model failure")))
+            from src.api import create_app
+
+            response = create_app(path).test_client().post("/predict", json=self.payload)
+
+        self.assertEqual(500, response.status_code)
+        self.assertEqual({"error": "internal server error"}, response.get_json())
+
+    def test_predict_marks_score_at_the_threshold_as_elevated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._bundle_path(Path(directory), model=ProbabilityModel(0.5), threshold=0.5)
+            from src.api import create_app
+
+            response = create_app(path).test_client().post("/predict", json=self.payload)
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("elevated", response.get_json()["risk_level"])
+
+
+class ProbabilityModel:
+    def __init__(self, result: float | Exception) -> None:
+        self.result = result
+
+    def predict_proba(self, _: pd.DataFrame) -> np.ndarray:
+        if isinstance(self.result, Exception):
+            raise self.result
+        return np.array([[1 - self.result, self.result]])
 
 
 if __name__ == "__main__":
