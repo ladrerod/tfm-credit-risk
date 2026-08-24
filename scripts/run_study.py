@@ -8,11 +8,8 @@ def main() -> None:
     parser.add_argument("--mode", choices=("synthetic", "full"), default="synthetic")
     args = parser.parse_args()
     from src.pipeline import run_study
-    from src.reporting import build_report
 
-    artifact = "outputs/study-results.json"
-    run_study(args.mode, output_path=artifact)
-    build_report(artifact, "results/mortgage-credit-risk-study.html")
+    run_study(args.mode, output_path="outputs/study-results.json")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,378 @@
+% !TEX program = tectonic
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage[a4paper,top=18mm,bottom=19mm,left=20mm,right=20mm,headheight=13pt]{geometry}
+\usepackage{microtype}
+\usepackage{booktabs,tabularx,array}
+\usepackage{graphicx,xcolor,enumitem,caption,float}
+\usepackage{fancyhdr,hyperref,bookmark}
+
+\definecolor{navy}{RGB}{23,50,77}
+\definecolor{blue}{RGB}{31,90,138}
+\definecolor{orange}{RGB}{210,105,54}
+\definecolor{muted}{RGB}{94,106,117}
+\definecolor{pale}{RGB}{238,243,247}
+\hypersetup{colorlinks=true,linkcolor=navy,urlcolor=blue,citecolor=navy,
+  pdftitle={Modelización integral del riesgo de crédito hipotecario},
+  pdfauthor={Daniel Ladrero Meca}}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlist[itemize]{leftmargin=5mm,itemsep=1.5pt,topsep=2pt}
+\setlist[enumerate]{leftmargin=6mm,itemsep=1.5pt,topsep=2pt}
+\captionsetup{font=small,labelfont=bf,skip=3pt}
+\renewcommand{\arraystretch}{1.08}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}p{23mm}}
+\newcommand{\note}[1]{\par\noindent\colorbox{pale}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\small #1}}\par}
+\newcommand{\fig}[3]{\begin{figure}[H]\centering\includegraphics[width=#1\linewidth]{figures/#2}\caption{#3}\end{figure}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\textcolor{muted}{TFM -- Riesgo de crédito hipotecario}}
+\fancyhead[R]{\footnotesize\textcolor{muted}{Daniel Ladrero Meca -- 2026}}
+\fancyfoot[C]{\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+  \thispagestyle{empty}
+  \vspace*{15mm}
+  {\color{orange}\rule{\linewidth}{2.2pt}}\\[11mm]
+  {\fontsize{25}{29}\selectfont\bfseries\color{navy}
+  Modelización integral del riesgo\\de crédito hipotecario\par}
+  \vspace{7mm}
+  {\Large Probabilidad de incumplimiento, EAD, LGD, pérdida esperada y escenarios con Freddie Mac\par}
+  \vfill
+  \begin{tabular}{@{}ll@{}}
+    \textbf{Trabajo Fin de Máster} & Data Science, Big Data y Business Analytics \\
+    \textbf{Autor} & Daniel Ladrero Meca \\
+    \textbf{Curso} & 2025--2026 \\
+    \textbf{Fecha de cierre} & 22 de agosto de 2026 \\
+  \end{tabular}
+  \vfill
+  \note{Estudio académico retrospectivo. La solución no es un sistema de concesión, provisiones, capital regulatorio ni pricing. Antes de cualquier uso real requiere datos bancarios autorizados, validación independiente y aprobación de gobierno.}
+  \vspace{10mm}
+  {\color{orange}\rule{\linewidth}{2.2pt}}
+\end{titlepage}
+
+\hypersetup{pageanchor=false}
+\pagenumbering{roman}
+\hypersetup{pageanchor=true}
+\tableofcontents
+\vspace{5mm}
+\subsection*{Convenciones de lectura}
+PD designa la probabilidad de incumplimiento a 24 meses; EAD, la exposición en el momento del evento; LGD, la fracción de pérdida condicionada al evento; y EL, la pérdida esperada, calculada como $PD\times EAD\times LGD$. Distingo asociación predictiva, sensibilidad y causalidad. Todas las cifras proceden de una ejecución cerrada sobre datos Freddie Mac, con manifiesto y hashes verificables.
+\vfill
+\note{La memoria contiene la evidencia esencial, las tablas y los gráficos del estudio; el código reproduce transformaciones, modelos y controles. No se entrega vídeo.}
+
+\clearpage
+\hypersetup{pageanchor=false}
+\pagenumbering{arabic}
+\hypersetup{pageanchor=true}
+\section{Resumen ejecutivo}
+
+Como estudiante de Data Science que trabaja en el sector bancario, he desarrollado una solución reproducible para estudiar el riesgo económico de una cartera hipotecaria desde originación hasta resolución. La pregunta que guía el trabajo no es cuál es el algoritmo más complejo, sino qué evidencia necesito para estimar y gobernar PD, EAD y LGD sin ocultar los límites del dato público.
+
+La fuente hipotecaria es el \textit{Single-Family Loan-Level Dataset} de Freddie Mac \cite{freddie_data,freddie_guide}. Analizo una cohorte Q1 anual entre 2015 y 2022: 3.861.577 préstamos en los ficheros de origen, una muestra determinista máxima de 50.000 por año y 399.800 observaciones elegibles. Identifico 6.181 eventos a 24 meses (1,546\%). Desarrollo con 2015--2018, calibro en 2019, valido en 2020 y reservo 2021--2022 como prueba fuera de tiempo.
+
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}YRR@{}}\toprule
+Componente & Resultado fuera de tiempo & Interpretación \\\midrule
+PD logística calibrada & AUC 0,7763; Brier 0,01048 & Señal útil con sobreestimación media \\
+EAD HGB & error agregado 2,00\% & Adecuado para agregación académica \\
+LGD hurdle & error agregado 21,37\%; $n=60$ & Métrica favorable, muestra insuficiente \\
+Pérdida esperada & 107,95 MUSD; 0,3911\% de EAD & Integración ilustrativa \\
+Deriva & PSI del tipo 2,349 & Promoción bloqueada \\\bottomrule
+\end{tabularx}
+\caption{Síntesis de la ejecución real.}
+\end{table}
+
+La regresión logística supera ligeramente al modelo no lineal en validación y queda seleccionada por Brier, log-loss y AUC. El candidato que añade macroeconomía tampoco mejora el conjunto de criterios y no se promociona. En prueba, el sistema evalúa 99.955 préstamos y 1.035 eventos; la prevalencia es 1,035\%, frente a una PD media de 2,567\%. La calibración conjunta (intercepto $-0,309$, pendiente 1,196) evidencia que ordenar bien no equivale a estimar bien el nivel absoluto.
+
+Mi conclusión ejecutiva es deliberadamente prudente: el flujo técnico está completo, pero el modelo queda \textbf{no apto para decisión}. EAD cumple sus límites; LGD dispone de solo 36 resoluciones en validación y 60 en test, por debajo del mínimo de 100 fijado para cada periodo; y existe deriva crítica de tipo de interés. Para un uso bancario necesitaría solicitud y decisión, ingresos verificados, detalle de bureau, pricing, pagos, recuperaciones, costes, garantía actualizada, definición contable y validación independiente. El valor del proyecto reside en medir y hacer visible esa frontera.
+
+\clearpage
+\section{Contexto, motivación y objetivos}
+
+En banca, una decisión hipotecaria combina acceso al crédito, solvencia, rentabilidad ajustada a riesgo, explicabilidad, estabilidad y cumplimiento. Estos objetivos pueden entrar en conflicto. Una PD con buena AUC puede estar mal calibrada; una EAD correcta no compensa una LGD mal definida; una política conservadora puede reducir pérdida a costa de destruir volumen y margen.
+
+Freddie Mac contiene préstamos ya adquiridos, no el embudo completo de solicitudes. Por ello estudio riesgo de cartera y retención hipotética, no aprobación, denegación ni equidad individual. Tampoco afirmo que una muestra de hipotecas estadounidenses sea representativa de una cartera bancaria española. Esta delimitación evita responder con el dataset a preguntas que el dataset no observa.
+
+\subsection*{Objetivo general}
+
+Mi objetivo es construir una solución software de analítica avanzada que estime PD, EAD y LGD, integre pérdida esperada, simule sensibilidades y produzca evidencia reproducible de rendimiento, limitaciones y gobierno.
+
+\subsection*{Objetivos específicos}
+
+\begin{enumerate}
+  \item Preparar cohortes de originación con horizonte de 24 meses, sin fuga temporal y con muestreo reproducible.
+  \item Comparar una referencia interpretable y un modelo no lineal para PD, priorizando calibración y estabilidad temporal.
+  \item Estimar EAD y LGD sobre poblaciones condicionadas al evento y medir error individual y agregado.
+  \item Integrar $EL_i=\widehat{PD}_i\widehat{EAD}_i\widehat{LGD}_i$ sin presentarla como provisión o capital.
+  \item Evaluar políticas de retención y shocks macro bajo supuestos transparentes.
+  \item Incorporar explicabilidad, deriva, identidad de datos, pruebas y una memoria reproducible en LaTeX.
+\end{enumerate}
+
+Adopto PD/EAD/LGD como lenguaje de riesgo del marco de Basilea, no como pretensión de cumplimiento IRB \cite{bis_cre32}. También aplico una lógica de riesgo de modelo proporcional a finalidad y materialidad: desarrollo, validación, seguimiento y bloqueo cuando la evidencia es insuficiente \cite{fed_mrm}.
+
+Los datos internos ausentes afectan desde el primer objetivo. Para modelar una decisión real necesitaría fecha de solicitud, producto ofrecido, decisión, motivo de denegación, versión de política, excepción manual y autoridad aprobadora. Sin ellos no puedo estimar selección, sesgo de aprobación ni efecto de una regla sobre demanda. Considero un éxito que el sistema declare estas carencias y detenga la promoción.
+
+\clearpage
+\section{Fuentes, derechos de uso y privacidad}
+
+\subsection*{Freddie Mac}
+
+El \textit{Single-Family Loan-Level Dataset} publica un fichero de originación y otro de rendimiento mensual. La versión Release 47 documenta 31 campos de originación y 35 de performance \cite{freddie_guide}. Uso, entre otros, saldo, tipo, plazo, FICO, DTI, LTV, CLTV, ocupación, finalidad, estado, mora, saldo mensual, códigos de liquidación, recuperaciones, gastos y pérdida realizada. Valido el ancho real de ambas estructuras antes de procesar.
+
+Los términos permiten determinados resultados académicos públicos, no comerciales y agregados, pero restringen la redistribución del dataset y de productos que permitan reconstruirlo \cite{freddie_terms}. Por ello no publico ZIP, filas, identificadores ni el compacto analítico. El revisor que requiera reproducción real debe disponer de acceso autorizado; el repositorio entrega solo código, configuración, pruebas y la fuente LaTeX de esta memoria.
+
+\subsection*{Contexto macroeconómico}
+
+Uso dos fuentes primarias: la tasa nacional de desempleo LNS14000000 de BLS y el HPI \textit{Purchase-Only}, trimestral y desestacionalizado, de FHFA \cite{bls_api,fhfa_hpi}. Construyo desempleo de tres meses, cambio interanual del desempleo y crecimiento interanual del HPI. Aplico dos meses de retraso y una regla \textit{as-of}: la fecha disponible nunca puede ser posterior a la originación. La cobertura mínima es 99,957\%.
+
+El enlace macro se hace por tiempo disponible y, para HPI, por estado. No existe correspondencia individual entre una observación macro y un prestatario. La correlación de Spearman entre desempleo de tres meses y evento es $-0,091$ en la muestra; no la interpreto causalmente porque mezcla cohortes, selección y regímenes. Precisamente por eso el candidato macro debe mejorar fuera de tiempo para ser promovido.
+
+\subsection*{Privacidad y datos bancarios necesarios}
+
+El compacto elimina identificador de préstamo, vendedor, servicer y código postal. Contiene 399.800 filas y ocupa 4.269.820 bytes comprimidos. Un manifiesto registra los ocho ZIP, instantáneas macro, tamaños y SHA-256. Esta memoria solo contiene agregados no reconstructivos.
+
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}YYY@{}}\toprule
+Riesgo & Control aplicado & Límite residual \\\midrule
+Redistribución & Datos fuera de Git y sin subida remota & Acceso sujeto a términos \\
+Reidentificación & Eliminación de claves y salida agregada & No es anonimización certificada \\
+Fuga macro & Retraso y fecha \textit{as-of} & Depende del calendario de fuente \\
+Alteración & Hash por fuente, compacto y código & El hash no valida semántica \\\bottomrule
+\end{tabularx}
+\caption{Controles de derechos, privacidad e integridad.}
+\end{table}
+
+En una entidad añadiría ingreso y patrimonio acreditados, empleo, pasivos, detalle de bureau, comportamiento interno y consentimientos. Esos campos son necesarios tanto para capacidad de pago como para justificar finalidad, minimización, retención y acceso conforme al gobierno interno.
+
+\clearpage
+\section{Metodología y arquitectura}
+
+La arquitectura es lineal y verificable:
+
+\begin{center}\small
+\fbox{ZIP Freddie autorizados} $\rightarrow$ \fbox{esquema y hashes} $\rightarrow$ \fbox{muestra anual}\\[2mm]
+$\downarrow$\\[-1mm]
+\fbox{CSV.ZST privado} $\rightarrow$ \fbox{PD / EAD / LGD} $\rightarrow$ \fbox{EL y escenarios}\\[2mm]
+$\downarrow$\\[-1mm]
+\fbox{explicabilidad y drift} $\rightarrow$ \fbox{JSON agregado} $\rightarrow$ \fbox{memoria LaTeX}
+\end{center}
+
+Selecciono hasta 50.000 préstamos Q1 por año mediante un hash BLAKE2b estable de semilla 20260819. La selección no usa el outcome. Recorro todo el rendimiento mensual de cada préstamo seleccionado, agrego una fila analítica y excluyo identificadores. El lector filtra antes de convertir columnas, lo que mantiene la memoria en cientos de MB incluso con ZIP de varios GB.
+
+Defino default como primer 90+ días de mora o código de salida crediticia 02, 03, 09 o 15 entre los meses 0 y 23 desde el primer pago. Aproximo la originación como un mes antes del primer pago porque no se publica una fecha exacta. Un préstamo solo es elegible si tiene evento, salida terminal o 24 meses completos; así evito clasificar como sano un caso censurado.
+
+La partición temporal es estricta. PD usa desarrollo 2015--2018, calibración 2019, selección 2020 y prueba 2021--2022. EAD desarrolla 2015--2018, valida en 2019 y prueba 2020--2022. LGD exige resoluciones maduras y utiliza 2015--2017, 2018 y 2019--2020 respectivamente. El test no participa en selección ni calibración.
+
+La reproducibilidad combina configuración declarativa, versiones fijadas, semilla, manifiesto, hash de implementación y pruebas automáticas. La ejecución real usa Python 3.12.13, NumPy 2.3.5, pandas 2.3.3 y scikit-learn 1.8.0. El hash del compacto es \texttt{468a7a4e...f4ae0e0e}; el del manifiesto, \texttt{197628ca...16151f7c}.
+
+Una productivización bancaria exigiría además linaje campo a campo, fecha \textit{as-of} oficial, propietario, definición aprobada de default, versiones de política, overrides, reconciliación de outputs y evidencias de validación. El código deja puntos de control, pero no inventa esos procesos.
+
+\clearpage
+\section{EDA y preparación}
+
+La muestra final contiene 399.800 préstamos de un universo de 3.861.577 filas de originación en las ocho cohortes Q1. Solo 200 casos quedan censurados. Los 6.181 eventos no se distribuyen de manera estable: 2019 concentra 2.201 (4,406\%) y 2020, 1.744 (3,490\%), mientras 2021 registra 328 (0,656\%) y 2022, 707 (1,415\%). Esta heterogeneidad hace inadecuada una partición aleatoria.
+
+\fig{0.79}{event_rate.png}{Tasa del evento de crédito a 24 meses por cohorte.}
+
+La ausencia de DTI es 3,224\%; FICO falta en 0,018\%; LTV y CLTV casi no tienen ausencias. EAD está ausente en el 98,454\% porque solo existe en defaults, y LGD en el 99,936\% porque exige resolución completa. Estas ausencias son estructurales, no deben imputarse como si fueran fallos ordinarios.
+
+EAD observa 6.181 razones entre 0,130 y 1,014, sin valores negativos ni superiores a 1,5. LGD observa 256 resoluciones: 30 valores negativos, uno superior a 2 y rango $[-0,466;2,301]$. Conservo esta cola en el EDA y acoto el objetivo modelizado a $[0,2]$. Un valor negativo puede reflejar recuperaciones superiores a exposición; un valor alto puede concentrar gastos o convenciones de resolución. Sin contabilidad interna no asigno una interpretación única.
+
+LTV y CLTV muestran correlación de Spearman 0,973, por lo que evito leer sus importancias de forma aislada. Las asociaciones univariantes con default son modestas: FICO $-0,084$, tipo $0,061$, DTI $0,055$ y CLTV $0,039$. La señal predictiva surge de combinaciones y no prueba causalidad.
+
+No puedo evaluar representatividad frente al \textit{funnel} bancario porque faltan solicitudes rechazadas, canal, intermediario, documentación aportada, ingreso verificado, fraude, reglas de admisión y excepciones. Antes de transferir el modelo compararía cobertura, definición, distribución y outcome con una muestra bancaria autorizada.
+
+\clearpage
+\section{Modelo de probabilidad de incumplimiento}
+
+Comparo regresión logística regularizada y \textit{Histogram Gradient Boosting} \cite{sk_logit,sk_hgb}. Ambos reciben únicamente variables disponibles en originación. Calibro en 2019 y selecciono en 2020 por Brier y log-loss, siempre que AUC no se deteriore materialmente. La logística gana por un margen pequeño: Brier 0,033088 frente a 0,033108; log-loss 0,142694 frente a 0,143450; AUC 0,7122 frente a 0,7091. La decisión favorece el modelo más sencillo porque el no lineal no aporta una mejora demostrada.
+
+En prueba 2021--2022 obtengo AUC 0,7763, PR-AUC 0,03584, KS 0,4205, Brier 0,01048 y log-loss 0,05876. La PR-AUC es 3,46 veces la prevalencia de 1,035\%, por lo que existe señal útil en una clase infrecuente. La AUC es 0,7678 en 2021 y 0,7559 en 2022; el Brier pasa de 0,00670 a 0,01426 al aumentar la prevalencia.
+
+\fig{0.71}{auc_cohort.png}{AUC de PD en las cohortes de prueba.}
+
+\fig{0.71}{calibration.png}{PD media y evento observado por decil en prueba.}
+
+La PD media de prueba es 2,567\%, superior al 1,035\% observado. El intercepto de calibración es $-0,309$ y la pendiente 1,196. Los primeros deciles muestran sobreestimación clara; por tanto la PD sirve mejor para ranking académico que para pricing, provisión o aprobación.
+
+El candidato macro selecciona HGB, pero en validación obtiene Brier 0,033105 y AUC 0,7106, peores que la logística base. No lo promociono. Las variables macro siguen siendo útiles para describir cohortes y construir sensibilidades; no fuerzo su entrada en PD por plausibilidad económica.
+
+Una PD bancaria requeriría ingreso neto verificado, antigüedad y estabilidad laboral, activos líquidos, obligaciones externas, composición completa del bureau, morosidad interna, comportamiento transaccional, producto, pricing y fecha de decisión. Sin estos datos, el modelo caracteriza préstamos adquiridos por Freddie, no capacidad individual de pago en una nueva originación.
+
+\clearpage
+\section{Modelización de EAD, LGD y pérdida esperada}
+
+Para cada default defino $EAD=UPB_{evento}$ y modelo $EAD/UPB_{orig}$. Si el saldo del mes de evento no es positivo, uso el saldo retirado comunicado en la liquidación. Para LGD reconcilio la pérdida realizada con recuperaciones de seguro, venta, recuperaciones no aseguradas, gastos, saldo retirado e interés moroso. Solo acepto resolución crediticia completa, sin \textit{defect settlement}, y al menos tres meses anterior al cierre de performance.
+
+EAD dispone de 1.201 casos de desarrollo, 2.201 de validación y 2.779 de prueba. Comparo una razón constante 1,0 y HGB. En validación, HGB reduce el error agregado a 0,272\%, frente a 2,259\% de la constante. En test observa un total de razones 2.740,55 y predice 2.685,70: error agregado 2,001\%, WAPE 2,357\% y MAE 0,02324.
+
+\fig{0.69}{ead_error.png}{EAD: error relativo del total en validación.}
+
+LGD es mucho más limitada: 119 resoluciones en desarrollo, 36 en validación y 60 en prueba. Comparo media segmentada, Huber y hurdle. El hurdle gana en validación por error agregado 10,32\%, frente a 14,94\% y 26,50\%. En test observa un total de 10,35 y predice 12,57: error agregado 21,37\%, WAPE 105,67\% y MAE 0,18237.
+
+\fig{0.69}{lgd_error.png}{LGD: error relativo del total en validación.}
+
+Aunque el error agregado queda bajo el límite del 50\%, impongo un mínimo de 100 casos tanto en validación como en prueba. LGD no lo alcanza y bloquea la aptitud. Esta regla evita convertir una estimación inestable en una conclusión operativa por el azar de una muestra pequeña.
+
+Sobre los 99.955 préstamos de test, la EAD modelizada suma 27.601,36 MUSD, la PD media es 2,567\%, la razón EAD media 94,983\% y la LGD media 16,734\%. La EL asciende a 107,95 MUSD, el 0,3911\% de EAD: 38,29 MUSD en 2021 y 69,66 MUSD en 2022.
+
+\fig{0.70}{expected_loss.png}{Pérdida esperada por cohorte de prueba, en millones de dólares.}
+
+No interpreto EL como IFRS 9, provisión ni capital. Para una LGD bancaria necesitaría calendario de pagos y curas, modificaciones, redefaults, estrategia de cobro, fechas judiciales, tasaciones, cargas, seguros, flujos de venta, recobros, costes directos e indirectos, write-off, descuento temporal y reconciliación contable. Freddie mejora radicalmente el estudio frente a una fuente sin pérdidas, pero no sustituye esos flujos internos.
+
+\subsection*{Información interna que cerraría la brecha}
+
+\begin{table}[H]\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{31mm}p{61mm}Y@{}}\toprule
+Dominio & Campos bancarios requeridos & Justificación \\\midrule
+Default & Cura, redefault, impago contractual, aceleración y write-off & Alinear evento, horizonte y denominador \\
+Exposición & Cuadro contractual, pagos, intereses, disposiciones y límites & Reconstruir EAD por fecha y producto \\
+Recuperación & Flujo, importe, fecha, naturaleza, seguro y tercero pagador & Descontar y reconciliar recuperaciones \\
+Garantía & Tasación, fecha, cargas, venta, mantenimiento y vía judicial & Separar valor, costes y tiempo de resolución \\
+Contabilidad & Cuenta, centro de coste, provisión, pérdida y conciliación & Conectar LGD económica con estados internos \\\bottomrule
+\end{tabularx}
+\caption{Datos internos mínimos para validar EAD y LGD.}
+\end{table}
+
+También documentaría sesgo de resolución: una LGD madura excluye expedientes aún abiertos y puede sobre-representar vías rápidas. Aplicaría análisis de supervivencia o ponderación solo después de observar fecha de entrada, estado procesal y cierre. Sin esta información, el tamaño efectivo de 256 resoluciones es una limitación estructural, no un problema que otro algoritmo pueda resolver.
+
+\clearpage
+\section{Simulación de políticas de riesgo y escenarios macroeconómicos}
+
+El simulador aplica reglas transparentes sobre préstamos ya originados; por eso hablo de retención y no de concesión. La política base y la conservadora combinan límites de CLTV, DTI y PD. Los escenarios observado, moderado y severo desplazan desempleo y HPI en magnitudes configuradas. Son sensibilidades, no previsiones ni efectos causales.
+
+\fig{0.83}{retention.png}{Retención por política y escenario.}
+
+\begin{table}[H]\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}YYRRR@{}}\toprule
+Política & Escenario & Retención & Exposición & EL retenida \\\midrule
+Base & Observado & 96,42\% & 26.788,26 MUSD & 90,18 MUSD \\
+Base & Moderado & 86,12\% & 24.294,00 MUSD & 113,49 MUSD \\
+Base & Severo & 64,68\% & 18.605,63 MUSD & 106,10 MUSD \\
+Conservadora & Observado & 64,50\% & 17.629,84 MUSD & 45,86 MUSD \\
+Conservadora & Moderado & 53,11\% & 14.792,36 MUSD & 48,39 MUSD \\
+Conservadora & Severo & 35,46\% & 10.052,26 MUSD & 39,09 MUSD \\\bottomrule
+\end{tabularx}
+\caption{Sensibilidad conjunta de volumen, exposición y pérdida.}
+\end{table}
+
+La tasa EL/EAD de la política base aumenta de 0,337\% a 0,570\% entre observado y severo; en la conservadora pasa de 0,260\% a 0,389\%. La EL absoluta no es monótona porque el escenario también reduce préstamos y exposición retenidos. Una cifra menor puede significar menos negocio, no necesariamente mejor riesgo unitario.
+
+La simulación verifica que ningún escenario crea filas, que la exposición retenida no supera la inicial y que los shocks no usan información futura. No simula demanda, competencia, prepago ni respuesta del cliente. Tampoco reproduce una política real de Freddie o de una entidad.
+
+Para decidir en banca incorporaría margen financiero, comisiones, coste de financiación, consumo y coste de capital, prima de seguro, gastos operativos, probabilidad de prepago, elasticidad comercial y límites de apetito. También necesitaría reglas vigentes, overrides y motivos de decisión. Sin esos datos puedo comparar riesgo y volumen, pero no optimizar rentabilidad ajustada a riesgo.
+
+\clearpage
+\section{Interpretabilidad, gobierno y productivización}
+
+Calculo importancia por permutación sobre validación y sensibilidad de un perfil representativo. FICO es la variable con mayor impacto, seguida de estado, DTI, CLTV, número de prestatarios y tipo. Cambiar FICO de 725 a 788 reduce la PD del perfil 1,326 puntos; pasar de uno a dos prestatarios reduce 0,875; aumentar DTI de 27 a 42 eleva 0,652; y CLTV de 64 a 81 eleva 0,358. Estas variaciones no son efectos causales y pueden combinar relaciones incompatibles cuando los predictores están correlacionados.
+
+\fig{0.60}{importance.png}{Importancia global por permutación.}
+
+Comparo desarrollo con test mediante PSI y Jensen--Shannon. El tipo de interés alcanza PSI 2,349 y abre alerta crítica; UPB llega a 0,185 y CLTV a 0,106, ambos en advertencia. No corrijo el drift mediante reponderación silenciosa. Primero debe distinguirse cambio legítimo de mercado, cambio de adquisición, error de dato o pérdida de soporte.
+
+\fig{0.60}{drift.png}{PSI entre desarrollo y prueba.}
+
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}YYY@{}}\toprule
+Control & Evidencia & Acción \\\midrule
+Integridad & SHA-256 y esquema & Bloquear si cambia \\
+PD & AUC, PR-AUC, Brier, calibración & Recalibrar o reconstruir \\
+EAD/LGD & MAE, WAPE, error total y $n$ & No usar EL si falla un componente \\
+Deriva & PSI y Jensen--Shannon & Congelar y revisar segmentos \\
+Entrega & Fuente LaTeX sin filas & Compilar y verificar estructura \\\bottomrule
+\end{tabularx}
+\caption{Puertas mínimas de gobierno.}
+\end{table}
+
+La productivización actual es reproducibilidad local: configuración, dependencias fijadas, semilla, compacto autorizado, manifiesto, JSON agregado y memoria LaTeX. No requiere un servicio para consultar resultados. No implemento un API decisorio porque la puerta de gobierno está cerrada.
+
+En banca exigiría propietario e inventario, diccionario y linaje versionados, accesos, outcomes maduros, umbrales, overrides, incidencias, validación independiente y plan de recalibración. Estos controles determinan si la misma métrica sirve para ranking, pricing, provisión o capital \cite{fed_mrm}.
+
+\clearpage
+\section{Resultados, conclusiones y líneas futuras}
+
+He completado una cadena desde ocho ZIP Freddie y dos fuentes macro primarias hasta PD, EAD, LGD, EL, escenarios, monitorización y memoria LaTeX. La logística calibrada gana a HGB en validación; el candidato macro no justifica promoción; EAD reproduce el total con error de prueba 2,00\%; LGD obtiene 21,37\% pero carece de volumen suficiente; y el tipo de interés presenta deriva crítica.
+
+La evidencia responde a las preguntas iniciales:
+\begin{itemize}
+  \item \textbf{¿Existe señal predictiva?} Sí: AUC 0,7763 y KS 0,4205 en test.
+  \item \textbf{¿La PD está calibrada?} No para uso directo: PD media 2,567\% frente a 1,035\% observado.
+  \item \textbf{¿Puede integrarse la pérdida?} Sí matemáticamente; no como estimación bancaria validada por insuficiencia LGD.
+  \item \textbf{¿Aporta la macroeconomía?} Aporta contexto y sensibilidad, pero no mejora el candidato PD fuera de tiempo.
+  \item \textbf{¿Son reproducibles los resultados?} Sí con los datos autorizados, hashes y entorno fijado; la memoria presenta agregados sin datos fila a fila.
+\end{itemize}
+
+Mi conclusión es que el proyecto es sólido como investigación aplicada y prototipo de gobierno, pero no como motor crediticio. La limitación no invalida el trabajo: identifica dónde termina la evidencia pública y dónde empiezan la definición, los datos y los controles propios de una entidad.
+
+Priorizo, por este orden: (1) validar con una muestra bancaria autorizada que incluya solicitudes, decisión y outcomes; (2) reconstruir EAD/LGD y rentabilidad con flujos y contabilidad completos; (3) recalibrar PD con cohortes recientes y comparables; (4) calibrar escenarios con fuentes primarias, vintages y fechas de publicación; (5) automatizar monitorización cuando maduren los labels; y (6) realizar validación independiente y pruebas de uso.
+
+No cambiaría ahora la logística por un modelo más complejo. HGB no mejora la evidencia fuera de tiempo y el cuello de botella está en definición, representatividad, LGD y drift. Solo evaluaría técnicas adicionales cuando una deficiencia medida lo justifique: supervivencia para tiempo a default, modelos de recuperación y tiempo a resolución, o restricciones monotónicas si responden a requisitos de negocio y validación.
+
+Como profesional bancario, el aprendizaje principal es que un buen sistema cambia la pregunta. Ya no busco ``el mejor modelo'' en abstracto, sino evidencia suficiente para una finalidad concreta. En este estudio la evidencia permite análisis, comparación y aprendizaje, pero obliga a detener la promoción. Esa es una conclusión técnicamente y éticamente defendible.
+
+\clearpage
+\section{Bibliografía y anexos}
+
+\small
+\begin{thebibliography}{9}\setlength{\itemsep}{0pt}
+  \bibitem{freddie_data}\href{https://www.freddiemac.com/research/datasets/sf-loanlevel-dataset}{Freddie Mac. Single-Family Loan-Level Dataset}. Fuente y cobertura.
+  \bibitem{freddie_guide}\href{https://www.freddiemac.com/fmac-resources/research/pdf/general_user_guide_july_2026.pdf}{Freddie Mac. Single-Family Loan-Level Dataset General User Guide, Release 47}. Campos y semántica.
+  \bibitem{freddie_terms}\href{https://capitalmarkets.freddiemac.com/crt/docs/pdfs/fre_terms_conditions_sflld.pdf}{Freddie Mac. Terms and Conditions}. Uso y redistribución.
+  \bibitem{bls_api}\href{https://www.bls.gov/developers/api_signature_v2.htm}{U.S. Bureau of Labor Statistics. Public Data API}. Serie de desempleo y acceso.
+  \bibitem{fhfa_hpi}\href{https://www.fhfa.gov/house-price-index?tab=HPI+Datasets}{Federal Housing Finance Agency. House Price Index Datasets}. HPI estatal.
+  \bibitem{bis_cre32}\href{https://www.bis.org/basel_framework/chapter/CRE/32.htm}{Basel Committee on Banking Supervision. CRE32: IRB approach, risk components}. Terminología PD, EAD y LGD.
+  \bibitem{fed_mrm}\href{https://www.federalreserve.gov/supervisionreg/srletters/SR2602.htm}{Federal Reserve. SR 26-2, Revised Guidance on Model Risk Management}. Desarrollo, validación y seguimiento.
+  \bibitem{sk_logit}\href{https://scikit-learn.org/stable/modules/linear_model}{scikit-learn. Logistic Regression}. Referencia interpretable.
+  \bibitem{sk_hgb}\href{https://scikit-learn.org/stable/modules/ensemble}{scikit-learn. Histogram-Based Gradient Boosting}. Candidato no lineal.
+\end{thebibliography}
+
+\small
+\subsection*{Ficha de reproducción}
+
+\begin{table}[H]\centering\small
+\begin{tabularx}{\linewidth}{@{}p{38mm}Y@{}}\toprule
+Elemento & Evidencia \\\midrule
+Fuente hipotecaria & Freddie Mac, ocho cohortes Q1 de 2015--2022 \\
+Universo / elegibles & 3.861.577 / 399.800 préstamos \\
+Eventos / LGD madura & 6.181 / 256 \\
+Partición PD & desarrollo 2015--2018; calibración 2019; validación 2020; test 2021--2022 \\
+Compacto & 4.269.820 bytes; SHA-256 \texttt{468a7a4e...f4ae0e0e} \\
+Manifiesto & SHA-256 \texttt{197628ca...16151f7c} \\
+Entorno & Python 3.12.13; NumPy 2.3.5; pandas 2.3.3; scikit-learn 1.8.0 \\
+Salida & JSON agregado y memoria LaTeX; sin filas ni dependencias externas \\
+Estado & Ejecución completa; uso decisorio bloqueado \\\bottomrule
+\end{tabularx}
+\caption{Trazabilidad mínima de la ejecución.}
+\end{table}
+
+\subsection*{Diccionario analítico abreviado}
+
+\begin{table}[H]\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{33mm}p{37mm}Y@{}}\toprule
+Variable & Momento & Uso \\\midrule
+FICO, DTI, LTV, CLTV & Originación & Capacidad, garantía y PD \\
+Saldo, tipo y plazo & Originación & Exposición, precio y sensibilidad \\
+Estado, ocupación, finalidad & Originación & Segmentación y contexto \\
+Desempleo, HPI & Disponible en fecha & Candidato macro y escenarios \\
+Mora/salida crediticia & Primeros 24 meses & Objetivo de PD \\
+Saldo en default & Mes del evento & Objetivo de EAD \\
+Pérdida y recuperaciones & Resolución madura & Objetivo de LGD \\\bottomrule
+\end{tabularx}
+\caption{Variables esenciales y prevención de fuga temporal.}
+\end{table}
+
+La memoria entregable se organiza en los once capítulos del índice y utiliza exclusivamente agregados. Para repetir el estudio real, un revisor autorizado instala las versiones bloqueadas, conserva los ZIP por año, define \texttt{FREDDIE\_DATASET\_DIR}, prepara el compacto y ejecuta el modo completo. Una diferencia de hash identifica una nueva ejecución y debe documentarse.
+
+\note{No se entrega vídeo. La defensa oral y cualquier demostración audiovisual quedan fuera del alcance de esta memoria.}
+
+\end{document}
