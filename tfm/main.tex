@@ -118,9 +118,9 @@ Freddie Mac contiene préstamos ya adquiridos, no el embudo completo de solicitu
 
 \subsection*{Preguntas de investigación}
 
-El trabajo se articula alrededor de cinco preguntas. Primero, si las variables disponibles en originación permiten ordenar el riesgo de incumplimiento a 24 meses en cohortes futuras. Segundo, si ese orden se traduce en probabilidades bien calibradas. Tercero, si EAD y LGD pueden estimarse con una precisión suficiente para integrar pérdida esperada. Cuarto, si la macroeconomía añade capacidad predictiva o resulta más apropiada como instrumento de sensibilidad. Quinto, qué controles impedirían utilizar el modelo cuando la evidencia estadística o la cobertura de datos fueran insuficientes.
+El trabajo plantea siete preguntas. Primera, si la información de originación ordena el incumplimiento a 24 meses fuera de tiempo. Segunda, si las probabilidades están bien calibradas. Tercera, si EAD y LGD pueden estimarse con evidencia suficiente. Cuarta, si la EL integrada admite una interpretación bancaria. Quinta, si la macroeconomía mejora la predicción o aporta principalmente sensibilidad. Sexta, qué intercambio entre volumen y riesgo revelan las políticas simuladas. Séptima, si es viable un backtesting temporal repetido por componente y qué controles deben bloquear su uso cuando faltan madurez o cobertura.
 
-Las preguntas están relacionadas, pero no son intercambiables. Una respuesta positiva a la primera no resuelve la segunda; una EAD estable no compensa una LGD inmadura; y un escenario económicamente plausible no se convierte en pronóstico causal. Esta estructura permite graduar las conclusiones por fuerza de evidencia.
+Las respuestas no son intercambiables: ranking no implica calibración, EAD no compensa una LGD inmadura, una sensibilidad no es un pronóstico y un fold evaluable no aprueba el sistema completo. Esta correspondencia permite graduar las conclusiones por fuerza de evidencia.
 
 \subsection*{Objetivo general}
 
@@ -395,7 +395,6 @@ Para decidir en banca incorporaría margen financiero, comisiones, coste de fina
 
 \note{Lectura de escenarios: la severidad aumenta inequívocamente el riesgo relativo, pero la pérdida total combina riesgo y tamaño de cartera. La comparación económica requiere ambas dimensiones y una medida de rentabilidad ausente en el dato público.}
 
-\clearpage
 \section{Interpretabilidad, gobierno y productivización}
 
 Calculo importancia por permutación sobre validación y sensibilidad de un perfil representativo. FICO es la variable con mayor impacto, seguida de estado, DTI, CLTV, número de prestatarios y tipo. Cambiar FICO de 725 a 788 reduce la PD del perfil 1,326 puntos; pasar de uno a dos prestatarios reduce 0,875; aumentar DTI de 27 a 42 eleva 0,652; y CLTV de 64 a 81 eleva 0,358. Estas variaciones no son efectos causales y pueden combinar relaciones incompatibles cuando los predictores están correlacionados.

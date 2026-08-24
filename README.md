@@ -18,7 +18,7 @@ El resultado analítico es un artefacto agregado. La memoria final se mantiene e
 
 ## Requisitos
 
-- Python 3.13;
+- Python 3.12 o 3.13; la ejecución Freddie está verificada con 3.12.13 y la integración continua pública con 3.13;
 - dependencias fijadas en `requirements.lock`;
 - `freddie-analysis.csv.zst` ya preparado y autorizado para el modo `full`;
 - para el modelo multiestado real, `freddie-monthly/*.csv.zst` o los ZIP trimestrales originales para generarlo.
