@@ -17,6 +17,7 @@ from .pd_model import PDConfig, train_and_select
 
 BUNDLE_VERSION = 1
 MODEL_VERSION = "five-variable-pd-1"
+AUTHORIZED_DATA_SHA256 = "468a7a4e0b80b3dec1722b27a549f0c3a937ddc1cf2c99aa7f77ce51f4ae0e0e"
 PRODUCT_FEATURES = (
     "origination_fico",
     "original_dti",
@@ -55,17 +56,19 @@ REQUIRED_BUNDLE_KEYS = {
 
 def _implementation_sha256() -> str:
     digest = hashlib.sha256()
-    for path in (Path(__file__), Path(__file__).with_name("pd_model.py")):
+    for path in (Path(__file__), Path(__file__).with_name("pd_model.py"), Path(__file__).with_name("metrics.py")):
         digest.update(path.name.encode("utf-8"))
         digest.update(bytes.fromhex(file_sha256(path)))
     return digest.hexdigest()
 
 
-def _training_frame(path: str | Path, chunksize: int) -> tuple[pd.DataFrame, str]:
+def _training_frame(path: str | Path, chunksize: int, expected_sha256: str) -> tuple[pd.DataFrame, str]:
     source = Path(path)
     if not source.is_file():
         raise FileNotFoundError(f"missing prepared Freddie file: {source}")
     data_sha256 = file_sha256(source)
+    if data_sha256 != expected_sha256:
+        raise ValueError("prepared Freddie file SHA-256 does not match the authorized data")
     frames = []
     for chunk in read_csv_zst(source, chunksize=chunksize):
         if "cohort_year" not in chunk:
@@ -97,8 +100,14 @@ def _input_schema(frame: pd.DataFrame) -> dict[str, dict[str, float | str]]:
     return schema
 
 
-def train_product(path: str | Path, *, chunksize: int = 10_000, seed: int = 20260819) -> dict[str, Any]:
-    frame, data_sha256 = _training_frame(path, chunksize)
+def train_product(
+    path: str | Path,
+    *,
+    chunksize: int = 10_000,
+    seed: int = 20260819,
+    expected_sha256: str = AUTHORIZED_DATA_SHA256,
+) -> dict[str, Any]:
+    frame, data_sha256 = _training_frame(path, chunksize, expected_sha256)
     fitted = train_and_select(
         frame.loc[frame["cohort_year"].isin(DEVELOPMENT_YEARS)],
         frame.loc[frame["cohort_year"] == CALIBRATION_YEAR],
@@ -146,7 +155,7 @@ def load_bundle(path: str | Path) -> dict[str, Any]:
     missing = sorted(REQUIRED_BUNDLE_KEYS.difference(bundle))
     if missing:
         raise ValueError(f"model bundle is missing keys: {missing}")
-    if bundle["bundle_version"] != BUNDLE_VERSION:
+    if type(bundle["bundle_version"]) is not int or bundle["bundle_version"] != BUNDLE_VERSION:
         raise ValueError("unsupported model bundle version")
     if bundle["features"] != list(PRODUCT_FEATURES):
         raise ValueError("model bundle feature order does not match the product")
