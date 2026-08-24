@@ -131,7 +131,7 @@ En PD, la regresión logística obtiene en validación Brier 0,033089, log-loss 
 
 EAD es el componente con evidencia más consistente. Sobre 2.779 defaults de test, el error agregado es 2,001\%, el WAPE 2,357\% y el MAE 0,02324. LGD presenta el límite opuesto: el modelo hurdle obtiene 21,37\% de error agregado, pero solo existen 60 resoluciones de prueba y el WAPE alcanza 105,67\%. La integración produce una EL de 108,12 MUSD, el 0,3917\% de 27.601,36 MUSD de EAD modelizada; su lectura es indicativa porque hereda la sobreestimación de PD y la incertidumbre de LGD.
 
-Los escenarios hacen visible el intercambio entre volumen y riesgo. En la política base, la tasa EL/EAD aumenta de 0,337\% en el estado observado a 0,571\% en el severo, mientras la retención desciende de 96,40\% a 64,60\%. La pérdida absoluta no es monotónica porque cambia también la exposición retenida. El PSI 2,349 del tipo de interés confirma, además, que el entorno de prueba difiere sustancialmente del de desarrollo.
+Los escenarios hacen visible el intercambio entre volumen y riesgo. En la política base, la tasa EL/EAD aumenta de 0,337\% en el estado observado a 0,571\% en el severo, mientras la proporción de préstamos retenidos desciende de 96,40\% a 64,60\% y la EAD retenida pasa de 26.784,63 a 18.581,10 MUSD. La pérdida absoluta no es monotónica porque cambia también la exposición retenida. El PSI 2,349 del tipo de interés confirma, además, que el entorno de prueba difiere sustancialmente del de desarrollo.
 
 \callout{Decisión}{La solución es útil para investigación, comparación y gobierno, pero queda \textbf{no apta para decisión}. Antes de cualquier uso real se requieren recalibración reciente de PD, más recuperaciones maduras, ejecución walk-forward Freddie, datos bancarios autorizados y validación independiente.}
 
@@ -226,13 +226,12 @@ Deriva & PSI 0,10 en advertencia y 0,25 en crítico & Investigar y congelar si e
 
 El sistema informa \texttt{evaluated}, \texttt{insufficient\_evidence} o \texttt{unavailable} por fold y componente. Esta semántica conserva una distinción importante: un modelo puede estar técnicamente ejecutado y, aun así, no disponer de evidencia suficiente. Con la población, el aislamiento temporal y las puertas fijadas, la primera pregunta es si PD conserva orden y nivel probabilístico fuera de tiempo.
 
+\clearpage
 \section{EDA y preparación}
 
 \subsection{Distribución temporal del evento}
 
-\fig{0.78}{event_rate.png}{Tasa del evento de crédito a 24 meses por cohorte. La cifra sobre cada barra muestra tasa y eventos sobre observaciones elegibles. Fuente: ejecución Freddie reproducible.}{fig:event-rate}
-\clearpage
-\thispagestyle{fancy}
+\fig{0.94}{event_rate.png}{Distribución temporal del evento de crédito a 24 meses. El panel superior muestra el número de eventos y el inferior, la tasa por cohorte frente al 1,55\% total. Fuente: ejecución Freddie reproducible.}{fig:event-rate}
 
 \noindent Los 6.181 eventos no se distribuyen de forma estable: 2019 registra 2.201 (4,406\%), 2020, 1.744 (3,490\%), 2021, 328 (0,656\%) y 2022, 707 (1,415\%). La diferencia de casi siete veces entre 2019 y 2021 impide tratar el outcome como una constante y justifica preservar el orden temporal.
 
@@ -251,6 +250,10 @@ EAD observa ratios entre 0,130 y 1,014. LGD contiene 256 resoluciones, 30 valore
 Las variables macro se construyen con desempleo BLS y HPI estatal FHFA \cite{bls_api,fhfa_hpi}. Se aplican dos meses de retraso, una regla \textit{as-of} y cobertura mínima del 99,957\%. La correlación de Spearman entre desempleo de tres meses y evento es $-0,091$. El signo no implica protección: mezcla cohortes, políticas y regímenes. La macro se evalúa por separado como predictor y como insumo de sensibilidad, funciones que no deben confundirse.
 
 Las asociaciones univariantes con default son modestas: FICO $-0,084$, tipo 0,061, DTI 0,055 y CLTV 0,039. LTV y CLTV alcanzan correlación de Spearman 0,973 en la muestra de desarrollo. Estas cifras describen asociación, no causalidad; la correlación entre predictores también impide leer sus importancias posteriores como contribuciones independientes.
+
+\fig{0.90}{correlation_heatmap.png}{Correlaciones de Spearman entre los nueve predictores numéricos de originación en desarrollo. La matriz utiliza cobertura pareada y una escala fija de $-1$ a 1; los contornos destacan asociaciones absolutas iguales o superiores a 0,70. Fuente: ejecución Freddie reproducible.}{fig:correlations}
+
+La figura \ref{fig:correlations} confirma que la dependencia relevante no se limita a LTV y CLTV: ambos ratios también mantienen asociaciones elevadas con el porcentaje de seguro hipotecario. El mapa permite defender por qué una importancia individual no debe interpretarse como una contribución aislada y por qué la selección de variables requiere atender tanto al rendimiento como a la redundancia.
 
 La principal amenaza de validez externa es la selección previa. No se observan solicitudes rechazadas, condiciones alternativas, excepciones ni comportamiento bajo otra política. Tampoco se observan ingresos verificados, pasivos completos, bureau detallado, margen o capital. Una implantación bancaria requeriría volver a definir población, outcome y finalidad, y demostrar desempeño sobre datos autorizados del entorno de uso.
 
@@ -278,15 +281,15 @@ La logística supera a HGB en los tres criterios. El candidato macro logra un AU
 
 El test contiene 99.955 préstamos y 1.035 eventos, una prevalencia del 1,035\%. La logística obtiene AUC 0,7763, KS 0,4205, PR-AUC 0,03574, Brier 0,01048 y log-loss 0,05879. La PR-AUC equivale aproximadamente a 3,45 veces la prevalencia, resultado relevante en una clase infrecuente.
 
-\fig{0.96}{pd_diagnostics.png}{Diagnóstico de PD fuera de tiempo. A la izquierda, AUC por cohorte; a la derecha, tasa observada frente a PD media por decil. Fuente: holdout Freddie 2021--2022.}{fig:pd}
+\fig{0.96}{pd_diagnostics.png}{Diagnóstico de calibración de PD fuera de tiempo. A la izquierda, frecuencia observada frente a PD media por decil con intervalos Wilson del 95\%; a la derecha, diferencia observado menos predicho. El encabezado conserva el AUC por cohorte. Fuente: holdout Freddie 2021--2022.}{fig:pd}
 
-La parte izquierda de la figura \ref{fig:pd} muestra que la capacidad de ordenación persiste, aunque el AUC baja de 0,7678 en 2021 a 0,7559 en 2022. El Brier aumenta al mismo tiempo de 0,00670 a 0,01426. No se trata de un colapso, pero sí de una señal de que el rendimiento no debe resumirse en una cifra conjunta ni darse por estable.
+El encabezado de la figura \ref{fig:pd} muestra que la capacidad de ordenación persiste, aunque el AUC baja de 0,7678 en 2021 a 0,7559 en 2022. El Brier aumenta al mismo tiempo de 0,00670 a 0,01426. No se trata de un colapso, pero sí de una señal de que el rendimiento no debe resumirse en una cifra conjunta ni darse por estable.
 
 AUC y KS responden a una pregunta de orden: los eventos tienden a recibir mayor puntuación. No demuestran que una PD del 3\% corresponda a una frecuencia del 3\%. Esta distinción es decisiva porque el nivel absoluto entra directamente en pérdida esperada, política, pricing y provisión.
 
 \subsection{La calibración bloquea el uso cuantitativo}
 
-La PD media predicha es 2,571\%, frente al 1,035\% observado; la razón predicho/observado es 2,48. El intercepto de calibración es $-0,309$ y la pendiente, 1,197. La parte derecha de la figura \ref{fig:pd} confirma una sobreestimación sistemática, especialmente en grupos de menor riesgo.
+La PD media predicha es 2,571\%, frente al 1,035\% observado; la razón predicho/observado es 2,48. El intercepto de calibración es $-0,309$ y la pendiente, 1,197. Los dos paneles de la figura \ref{fig:pd} cuentan la misma historia desde ángulos complementarios: todos los deciles quedan por debajo de la diagonal ideal y todos los errores observado menos predicho son negativos. La sobreestimación, por tanto, es sistemática y no el efecto aislado de un único grupo.
 
 Recalibrar sobre el test corregiría aparentemente el problema, pero destruiría su función de evidencia independiente. La remediación correcta necesita una cohorte reciente, madura y representativa para ajustar el nivel, seguida de un nuevo periodo reservado. Hasta entonces, la puntuación puede utilizarse para investigación, segmentación y priorización analítica, no como probabilidad contractual ni como regla individual.
 
@@ -322,7 +325,7 @@ Para cada préstamo del test se integra
 \]
 Sobre 99.955 préstamos, el saldo original suma 29.038,52 MUSD y la EAD modelizada, 27.601,36 MUSD. La PD media es 2,571\%, el ratio EAD medio 94,983\% y la LGD media 16,734\%. El resultado es una EL de 108,12 MUSD, equivalente al 0,3917\% de EAD.
 
-\fig{0.70}{expected_loss_cohort.png}{Pérdida esperada modelizada y tasa EL/EAD por cohorte. El importe aumenta de 38,37 MUSD en 2021 a 69,75 MUSD en 2022; la tasa pasa de 0,2798\% a 0,5022\%. Fuente: ejecución Freddie.}{fig:el}
+\fig{0.87}{expected_loss_cohort.png}{Pérdida esperada modelizada y tasa EL/EAD por cohorte. El importe aumenta de 38,37 MUSD en 2021 a 69,75 MUSD en 2022; la tasa pasa de 0,2798\% a 0,5022\%. Fuente: ejecución Freddie.}{fig:el}
 
 La diferencia de la figura \ref{fig:el} combina prevalencia, composición y volumen económico; no puede atribuirse a una sola causa. Más importante, el producto no es más sólido que sus factores. La sobreestimación de PD y la escasez de LGD se transmiten a EL, por lo que la cifra sirve para comparar cohortes y sensibilidades dentro del ejercicio, no como estimación decisoria.
 
@@ -351,22 +354,11 @@ Los escenarios modifican únicamente la PD. A partir de la probabilidad base $p_
 \]
 El escenario moderado combina $\Delta U=+2$ puntos de desempleo y $\Delta HPI=-10$ puntos; el severo, $+4$ y $-20$. Los desplazamientos de log-odds son 0,6 y 1,2. EAD, LGD, saldo, CLTV y DTI se mantienen fijos. La construcción es una sensibilidad configurada: no estima cómo evolucionará la economía ni identifica un efecto causal.
 
-Después del shock se aplican dos políticas hipotéticas. La base retiene CLTV $\leq97$, DTI $\leq50$ y PD $\leq8\%$; la conservadora exige CLTV $\leq90$, DTI $\leq43$ y PD $\leq5\%$. Al elevarse PD, algunos préstamos dejan de cumplir el umbral, de modo que cambian simultáneamente riesgo y tamaño de cartera.
+Después del shock se aplican dos políticas hipotéticas. La base retiene CLTV $\leq97$, DTI $\leq50$ y PD $\leq8\%$; la conservadora exige CLTV $\leq90$, DTI $\leq43$ y PD $\leq5\%$. Al elevarse PD, algunos préstamos dejan de cumplir el umbral, de modo que cambian simultáneamente el número de préstamos, la EAD retenida y el riesgo de la subcartera.
 
-\begin{table}[H]\centering\footnotesize
-\begin{tabularx}{\linewidth}{@{}p{24mm}p{22mm}RRRR@{}}\toprule
-Política & Escenario & Retención & EAD (MUSD) & EL (MUSD) & EL/EAD \\\midrule
-Base & Observado & 96,40\% & 26.784,63 & 90,32 & 0,337\% \\
-Base & Moderado & 86,09\% & 24.286,04 & 113,61 & 0,468\% \\
-Base & Severo & 64,60\% & 18.581,10 & 106,08 & 0,571\% \\
-Conservadora & Observado & 64,47\% & 17.622,72 & 45,89 & 0,260\% \\
-Conservadora & Moderado & 53,07\% & 14.783,69 & 48,43 & 0,328\% \\
-Conservadora & Severo & 35,37\% & 10.027,25 & 39,03 & 0,389\% \\\bottomrule
-\end{tabularx}
-\caption{Riesgo y volumen retenido bajo políticas y shocks de PD.}
-\end{table}
+\fig{0.94}{scenario_tradeoff.png}{Intercambio entre EAD retenida, tasa EL/EAD y pérdida absoluta bajo dos políticas y tres escenarios. Los porcentajes junto a los puntos representan la proporción de préstamos retenidos. Las líneas conectan estados discretos de sensibilidad; no representan una trayectoria temporal ni un pronóstico. Fuente: ejecución Freddie sobre el holdout 2021--2022.}{fig:scenario-tradeoff}
 
-La tasa EL/EAD aumenta con la severidad en ambas políticas. La pérdida absoluta, en cambio, alcanza su máximo en el escenario moderado y luego disminuye porque el filtro severo excluye más exposición. El descenso de 113,61 a 106,08 MUSD en la política base no representa una mejora económica espontánea; describe una cartera 23\% menor. Sin margen, demanda, costes y capital no puede elegirse una política óptima. El resultado defendible es el intercambio cuantificado entre riesgo relativo y volumen.
+La figura \ref{fig:scenario-tradeoff} muestra que la tasa EL/EAD aumenta con la severidad en ambas políticas. La pérdida absoluta, en cambio, alcanza su máximo en el escenario moderado y luego disminuye porque el filtro severo excluye más exposición. El descenso de 113,61 a 106,08 MUSD en la política base no representa una mejora económica espontánea; coincide con una EAD retenida 23,5\% menor, de 24.286,04 a 18.581,10 MUSD, y con una reducción de 86.051 a 64.572 préstamos. Sin margen, demanda, costes y capital no puede elegirse una política óptima. El resultado defendible es el intercambio cuantificado entre riesgo relativo y volumen.
 
 \section{Interpretabilidad, gobierno y productivización}
 
@@ -374,13 +366,15 @@ La tasa EL/EAD aumenta con la severidad en ambas políticas. La pérdida absolut
 
 La importancia por permutación sitúa primero FICO, seguido de estado de la propiedad, DTI, CLTV, número de prestatarios y tipo de interés. En un perfil representativo, elevar FICO de 725 a 788 reduce la PD 1,328 puntos porcentuales; pasar de uno a dos prestatarios la reduce 0,876; aumentar DTI de 27 a 42 la eleva 0,652; CLTV de 64 a 81, 0,358; y el tipo de 3,375\% a 3,875\%, 0,352.
 
-Estas perturbaciones explican la respuesta del modelo manteniendo constantes los demás campos. No son efectos causales ni recomendaciones individuales: pueden crear combinaciones poco realistas y reparten señal entre variables correlacionadas. Su utilidad es comprobar dirección, magnitud y coherencia, y detectar resultados que requieran revisión.
+\fig{0.96}{interpretability.png}{Interpretabilidad agregada de PD. Izquierda: importancia por permutación media y una desviación estándar en validación. Derecha: cambio de PD de un perfil representativo al pasar de p25 a p75, manteniendo constantes los demás campos. Fuente: ejecución Freddie reproducible.}{fig:interpretability}
+
+La figura \ref{fig:interpretability} separa dos preguntas que suelen confundirse. La importancia global mide el cambio del Brier al permutar una variable: un valor positivo indica deterioro y uno negativo, una mejora estimada que suele revelar señal débil o variación muestral cuando su intervalo cruza cero. La sensibilidad local indica cómo responde una predicción concreta al variar ese campo. Estas perturbaciones no son efectos causales ni recomendaciones individuales: pueden crear combinaciones poco realistas y reparten señal entre variables correlacionadas. Su utilidad es comprobar dirección, magnitud y coherencia, y detectar resultados que requieran revisión.
 
 \subsection{Deriva y decisión de gobierno}
 
 El Population Stability Index (PSI) compara desarrollo 2015--2018 con prueba 2021--2022. Los umbrales adoptados son 0,10 para advertencia y 0,25 para estado crítico. No se repondera silenciosamente una variable que cambia; primero debe distinguirse mercado, composición, adquisición, error de dato o pérdida de soporte.
 
-\fig{0.90}{drift.png}{PSI de las variables de originación entre desarrollo y prueba. El tipo de interés supera ampliamente el umbral crítico; saldo original y CLTV quedan en advertencia. Fuente: ejecución Freddie.}{fig:drift}
+\fig{0.96}{drift.png}{PSI de las variables de originación entre desarrollo y prueba. El panel izquierdo conserva la escala completa del tipo de interés; el derecho amplía el resto sin ocultar los umbrales de advertencia y crítico. Fuente: ejecución Freddie.}{fig:drift}
 
 El tipo de interés alcanza PSI 2,349; saldo original, 0,185; y CLTV, 0,106. La magnitud del primero es coherente con un cambio de régimen, pero PSI no identifica la causa ni mide por sí solo deterioro predictivo. Sí obliga a investigar soporte, segmentos y calibración antes de promocionar el sistema. La combinación de PD sobreestimada, LGD insuficiente y deriva crítica cierra la puerta de uso.
 
@@ -478,7 +472,7 @@ Las figuras se regeneran desde un JSON agregado explícito mediante:
 \texttt{python scripts/generate\_tfm\_figures.py --input <resultado.json>\\
 \hspace*{8mm}--output-dir tfm/figures}
 \end{quote}
-El generador rechaza evidencia marcada como sintética, valida primero todos los campos necesarios y produce seis PNG deterministas. No se publican filas Freddie. La compilación de \texttt{tfm/main.tex} produce el PDF final.
+El generador rechaza evidencia marcada como sintética, valida primero todos los campos necesarios y produce nueve PNG deterministas. No se publican filas Freddie. La compilación de \texttt{tfm/main.tex} produce el PDF final.
 
 \section*{B.\quad Variables y brechas para uso bancario}
 \addcontentsline{toc}{subsection}{B. Variables y brechas para uso bancario}
@@ -519,27 +513,9 @@ Datos & Muestreo determinista, manifiesto, hashes y salida agregada & Repetibili
 Riesgo & PD, EAD, LGD y EL con poblaciones diferenciadas & Lectura conjunta sin falsa compensación \\
 Validación & Holdout real y motor walk-forward con filtros \textit{as-of} & Diagnóstico temporal y siguiente prueba definida \\
 Gobierno & Estados, umbrales, escenarios, sensibilidad y PSI & Bloqueo explicable cuando falta evidencia \\
-Documento & Fuente LaTeX, seis figuras reproducibles y PDF final & Defensa trazable desde cifra hasta conclusión \\\bottomrule
+Documento & Fuente LaTeX, nueve figuras reproducibles y PDF final & Defensa trazable desde cifra hasta conclusión \\\bottomrule
 \end{tabularx}
 \caption{Contribución de la solución software al objetivo del TFM.}
 \end{table}
-
-\section*{D.\quad Interpretabilidad agregada}
-\addcontentsline{toc}{subsection}{D. Interpretabilidad agregada}
-
-\begin{table}[H]\centering\small
-\begin{tabularx}{\linewidth}{@{}YRR@{}}\toprule
-Variable & Importancia media & Desviación \\\midrule
-FICO de originación & 0,000418 & 0,000031 \\
-Estado de la propiedad & 0,000166 & 0,000071 \\
-DTI original & 0,000147 & 0,000017 \\
-CLTV original & 0,000134 & 0,000012 \\
-Número de prestatarios & 0,000120 & 0,000030 \\
-Tipo de interés & 0,000103 & 0,000002 \\\bottomrule
-\end{tabularx}
-\caption{Principales importancias por permutación en validación. La métrica mide pérdida de rendimiento al romper información; no efecto causal.}
-\end{table}
-
-La importancia global y la sensibilidad local responden a preguntas distintas. La primera indica cuánto utiliza el modelo la información disponible; la segunda muestra cómo cambia una predicción concreta al perturbar un campo. Ninguna identifica el efecto de intervenir sobre un prestatario. Esta cautela es especialmente relevante en FICO y en ratios de garantía correlacionadas.
 
 \end{document}
