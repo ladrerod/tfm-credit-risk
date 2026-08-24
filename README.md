@@ -70,6 +70,43 @@ La recomendación Q1--Q4 con 12.500 préstamos por trimestre conserva aproximada
 
 La preparación genera `freddie-analysis.csv.zst`, particiones `freddie-monthly/YYYYQn.csv.zst` y el linaje `.private/freddie/manifest.json`. El directorio mensual debe estar vacío para impedir mezclas entre ejecuciones. El identificador original no se escribe: ambas vistas se unen mediante una clave sustituta determinista. Estos archivos están excluidos del repositorio y su uso sigue sujeto a los términos de Freddie Mac.
 
+## Producto local de cinco entradas
+
+El producto mínimo entrena un único modelo de PD a 24 meses y acepta exactamente estas cinco entradas numéricas, en este orden: `origination_fico`, `original_dti`, `original_cltv`, `original_interest_rate` y `number_of_borrowers`. El entrenamiento usa desarrollo 2015--2018, calibración 2019 y validación 2020; no evalúa 2021--2022.
+
+En PowerShell, con el compacto autorizado en la raíz, entrena el bundle local así:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.train_model --data freddie-analysis.csv.zst --output models\pd-model.joblib
+```
+
+Inicia el servicio local en otra consola:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.serve_model --model models\pd-model.joblib --port 5000
+```
+
+Y envía una solicitud con las cinco entradas:
+
+```powershell
+$body = @{ origination_fico = 700; original_dti = 30; original_cltv = 80; original_interest_rate = 4.5; number_of_borrowers = 2 } | ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:5000/predict -ContentType application/json -Body $body
+```
+
+La respuesta tiene esta forma:
+
+```json
+{
+  "risk_score": 0.0237,
+  "risk_level": "elevated",
+  "model_version": "five-variable-pd-1",
+  "horizon_months": 24,
+  "warning": "Experimental academic risk score; not a credit decision."
+}
+```
+
+`risk_score` es un score relativo y experimental para uso académico. No constituye aprobación o denegación, pricing, regulación, provisiones ni una probabilidad contractual. El compacto de Freddie y `models/pd-model.joblib` están ignorados y no se incluyen en el repositorio; su uso sigue sujeto a los términos de Freddie Mac.
+
 ## Pruebas
 
 ```bash

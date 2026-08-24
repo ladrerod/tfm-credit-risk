@@ -52,6 +52,9 @@ class DeliveryContractTests(unittest.TestCase):
         required = {
             ROOT / "README.md",
             ROOT / "scripts" / "run_study.py",
+            ROOT / "scripts" / "train_model.py",
+            ROOT / "scripts" / "serve_model.py",
+            ROOT / "src" / "api.py",
             ROOT / "tfm" / "main.tex",
             ROOT / ".github" / "workflows" / "run-study.yml",
         }
