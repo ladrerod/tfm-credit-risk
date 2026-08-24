@@ -94,6 +94,27 @@ class ProductTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertNotEqual(baseline, digest(name))
 
+    def test_training_rejects_an_implementation_changed_after_import(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = self._prepared_file(Path(directory))
+            with (
+                patch("src.product.AUTHORIZED_DATA_SHA256", self._sha256(source)),
+                patch("src.product._implementation_sha256", return_value="f" * 64),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "implementation changed"):
+                    train_product(source)
+
+    def test_training_rejects_an_implementation_change_during_fit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = self._prepared_file(Path(directory))
+            snapshot = _implementation_sha256()
+            with (
+                patch("src.product.AUTHORIZED_DATA_SHA256", self._sha256(source)),
+                patch("src.product._implementation_sha256", side_effect=[snapshot, "f" * 64]),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "implementation changed"):
+                    train_product(source)
+
     def test_loader_rejects_boolean_or_float_bundle_versions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -181,6 +202,19 @@ class ProductTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "feature order"):
                 self._load_bundle(output, source)
+
+    def test_save_rejects_an_implementation_change_after_training(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self._prepared_file(root)
+            bundle = self._train_product(source, chunksize=48)
+            output = root / "pd-model.joblib"
+
+            with patch("src.product._implementation_sha256", return_value="f" * 64):
+                with self.assertRaisesRegex(RuntimeError, "implementation changed"):
+                    save_bundle(bundle, output)
+
+            self.assertFalse(output.exists())
 
     def test_loader_rejects_missing_keys_wrong_version_and_test_evaluation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -72,6 +72,14 @@ def _implementation_sha256() -> str:
     return digest.hexdigest()
 
 
+_IMPLEMENTATION_SHA256 = _implementation_sha256()
+
+
+def _require_implementation(expected: str) -> None:
+    if _implementation_sha256() != expected:
+        raise RuntimeError("product implementation changed during this process")
+
+
 def _training_frame(path: str | Path, chunksize: int) -> tuple[pd.DataFrame, str]:
     source = Path(path)
     if not source.is_file():
@@ -116,6 +124,8 @@ def train_product(
     chunksize: int = 10_000,
     seed: int = 20260819,
 ) -> dict[str, Any]:
+    implementation_sha256 = _IMPLEMENTATION_SHA256
+    _require_implementation(implementation_sha256)
     frame, data_sha256 = _training_frame(path, chunksize)
     fitted = train_and_select(
         frame.loc[frame["cohort_year"].isin(DEVELOPMENT_YEARS)],
@@ -123,7 +133,7 @@ def train_product(
         frame.loc[frame["cohort_year"] == VALIDATION_YEAR],
         PDConfig(PRODUCT_FEATURES, (), seed, target=TARGET),
     )
-    return {
+    bundle = {
         "bundle_version": BUNDLE_VERSION,
         "model_version": MODEL_VERSION,
         "model": fitted["selected_model"],
@@ -141,8 +151,10 @@ def train_product(
         "test_evaluated": False,
         "data_source": "prepared_freddie_dataset",
         "data_sha256": data_sha256,
-        "implementation_sha256": _implementation_sha256(),
+        "implementation_sha256": implementation_sha256,
     }
+    _require_implementation(implementation_sha256)
+    return bundle
 
 
 def save_bundle(bundle: dict[str, Any], path: str | Path) -> None:
@@ -150,6 +162,8 @@ def save_bundle(bundle: dict[str, Any], path: str | Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(target.suffix + ".partial")
     try:
+        if "implementation_sha256" in bundle:
+            _require_implementation(bundle["implementation_sha256"])
         joblib.dump(bundle, temporary)
         os.replace(temporary, target)
     finally:
