@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import zstandard as zstd
 
-from src.data_access import read_csv_zst
+from src.data_access import read_csv_zst, write_csv_zst_parts
 
 
 class DataAccessTests(unittest.TestCase):
@@ -38,6 +38,21 @@ class DataAccessTests(unittest.TestCase):
             path = self._fixture(Path(directory), private=True)
             with self.assertRaisesRegex(ValueError, "private columns"):
                 list(read_csv_zst(path, chunksize=2))
+
+    def test_rejects_freddie_sequence_number_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "panel.csv.zst"
+            frame = pd.DataFrame({"Loan Sequence Number": ["F123"]})
+            path.write_bytes(zstd.ZstdCompressor(level=3).compress(frame.to_csv(index=False).encode()))
+
+            with self.assertRaisesRegex(ValueError, "private columns"):
+                list(read_csv_zst(path, chunksize=1))
+
+    def test_writer_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "parts.csv.zst"
+            write_csv_zst_parts([pd.DataFrame({"value": [1, 2]})], path, level=3)
+            self.assertEqual([1, 2], pd.concat(read_csv_zst(path, chunksize=1))["value"].tolist())
 
 
 if __name__ == "__main__":

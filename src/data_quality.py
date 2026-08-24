@@ -14,8 +14,9 @@ def validate_frame(
     missing = sorted(set(required).difference(frame.columns))
     if missing:
         raise ValueError(f"missing required columns: {missing}")
-    if "record_key" in frame and frame["record_key"].duplicated().any():
-        raise ValueError("duplicate record keys")
+    for key in ("record_key", "loan_key"):
+        if key in frame and frame[key].duplicated().any():
+            raise ValueError(f"duplicate {key} values")
     for name, (lower, upper) in ranges.items():
         values = pd.to_numeric(frame[name], errors="coerce").dropna()
         if not values.between(lower, upper, inclusive="both").all():
