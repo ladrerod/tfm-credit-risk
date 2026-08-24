@@ -289,7 +289,13 @@ def _expected_loss(
             "reason": "predicted EAD and LGD must be finite",
         }
     predicted = float((pd_probability * portfolio_upb * ead * lgd).sum())
-    realized = float((complete["original_upb"] * complete["ead_ratio"] * complete["lgd"]).sum())
+    realized = float(
+        (
+            realized_upb.loc[complete.index]
+            * realized_ead.loc[complete.index]
+            * realized_lgd.loc[complete.index]
+        ).sum()
+    )
     if not np.isfinite([predicted, realized]).all():
         return {
             "status": "unavailable",

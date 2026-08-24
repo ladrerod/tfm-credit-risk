@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import unittest
 
 import pandas as pd
@@ -203,6 +204,17 @@ class WalkForwardTests(unittest.TestCase):
 
                 self.assertEqual("unavailable", result["status"])
                 self.assertIn("portfolio original_upb", result["reason"])
+
+    def test_expected_loss_accepts_numeric_string_realized_values(self) -> None:
+        frame = _frame()
+        frame["original_upb"] = frame["original_upb"].astype(object)
+        defaults = frame["cohort_year"].eq(2020) & frame["default_24m"].eq(1)
+        frame.loc[defaults, "original_upb"] = "100000"
+
+        result = self._run(frame, minimum_lgd_rows=2)["folds"][0]["expected_loss"]
+
+        self.assertEqual("evaluated", result["status"])
+        self.assertTrue(math.isfinite(result["realized_total"]))
 
     def test_fold_as_of_dates_must_increase(self) -> None:
         later = {
