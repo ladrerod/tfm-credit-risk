@@ -107,6 +107,8 @@ La respuesta tiene esta forma:
 
 `risk_score` es un score relativo y experimental para uso académico. No constituye aprobación o denegación, pricing, regulación, provisiones ni una probabilidad contractual. El compacto de Freddie y `models/pd-model.joblib` están ignorados y no se incluyen en el repositorio; su uso sigue sujeto a los términos de Freddie Mac.
 
+`joblib.load` deserializa y puede ejecutar código. Sirve únicamente el bundle local generado por este proyecto; nunca cargues un `.joblib` descargado o de origen no confiable.
+
 ## Pruebas
 
 ```bash

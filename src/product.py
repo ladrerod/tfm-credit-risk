@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
+import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -56,18 +59,25 @@ REQUIRED_BUNDLE_KEYS = {
 
 def _implementation_sha256() -> str:
     digest = hashlib.sha256()
-    for path in (Path(__file__), Path(__file__).with_name("pd_model.py"), Path(__file__).with_name("metrics.py")):
+    for path in (
+        Path(__file__),
+        Path(__file__).with_name("pd_model.py"),
+        Path(__file__).with_name("metrics.py"),
+        Path(__file__).with_name("data_access.py"),
+        Path(__file__).with_name("integrity.py"),
+        Path(__file__).with_name("api.py"),
+    ):
         digest.update(path.name.encode("utf-8"))
         digest.update(bytes.fromhex(file_sha256(path)))
     return digest.hexdigest()
 
 
-def _training_frame(path: str | Path, chunksize: int, expected_sha256: str) -> tuple[pd.DataFrame, str]:
+def _training_frame(path: str | Path, chunksize: int) -> tuple[pd.DataFrame, str]:
     source = Path(path)
     if not source.is_file():
         raise FileNotFoundError(f"missing prepared Freddie file: {source}")
     data_sha256 = file_sha256(source)
-    if data_sha256 != expected_sha256:
+    if data_sha256 != AUTHORIZED_DATA_SHA256:
         raise ValueError("prepared Freddie file SHA-256 does not match the authorized data")
     frames = []
     for chunk in read_csv_zst(source, chunksize=chunksize):
@@ -105,9 +115,8 @@ def train_product(
     *,
     chunksize: int = 10_000,
     seed: int = 20260819,
-    expected_sha256: str = AUTHORIZED_DATA_SHA256,
 ) -> dict[str, Any]:
-    frame, data_sha256 = _training_frame(path, chunksize, expected_sha256)
+    frame, data_sha256 = _training_frame(path, chunksize)
     fitted = train_and_select(
         frame.loc[frame["cohort_year"].isin(DEVELOPMENT_YEARS)],
         frame.loc[frame["cohort_year"] == CALIBRATION_YEAR],
@@ -157,8 +166,57 @@ def load_bundle(path: str | Path) -> dict[str, Any]:
         raise ValueError(f"model bundle is missing keys: {missing}")
     if type(bundle["bundle_version"]) is not int or bundle["bundle_version"] != BUNDLE_VERSION:
         raise ValueError("unsupported model bundle version")
+    if bundle["model_version"] != MODEL_VERSION:
+        raise ValueError("model bundle model_version does not match the product")
+    if not callable(getattr(bundle["model"], "predict_proba", None)):
+        raise ValueError("model bundle predict_proba is not callable")
+    if not isinstance(bundle["selected_model_name"], str) or not bundle["selected_model_name"]:
+        raise ValueError("model bundle selected_model_name must be a string")
     if bundle["features"] != list(PRODUCT_FEATURES):
         raise ValueError("model bundle feature order does not match the product")
+    schema = bundle["input_schema"]
+    if not isinstance(schema, Mapping) or set(schema) != set(PRODUCT_FEATURES):
+        raise ValueError("model bundle input_schema does not match the product")
+    for feature in PRODUCT_FEATURES:
+        limits = schema[feature]
+        if not isinstance(limits, Mapping) or set(limits) != {"type", "minimum", "maximum"}:
+            raise ValueError("model bundle input_schema is invalid")
+        minimum, maximum = limits["minimum"], limits["maximum"]
+        if (
+            limits["type"] != "number"
+            or type(minimum) not in (int, float)
+            or type(maximum) not in (int, float)
+            or not math.isfinite(minimum)
+            or not math.isfinite(maximum)
+            or minimum > maximum
+        ):
+            raise ValueError("model bundle input_schema is invalid")
+    if schema["original_cltv"]["maximum"] > 200:
+        raise ValueError("model bundle original_cltv maximum exceeds 200")
+    threshold = bundle["validation_threshold"]
+    if type(threshold) not in (int, float) or not math.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise ValueError("model bundle validation_threshold is invalid")
+    if not isinstance(bundle["validation_metrics"], Mapping):
+        raise ValueError("model bundle validation_metrics must be a mapping")
+    fixed_values = {
+        "target": TARGET,
+        "horizon_months": HORIZON_MONTHS,
+        "event_definition": EVENT_DEFINITION,
+        "development_years": list(DEVELOPMENT_YEARS),
+        "calibration_year": CALIBRATION_YEAR,
+        "validation_year": VALIDATION_YEAR,
+        "data_source": "prepared_freddie_dataset",
+    }
+    for name, expected in fixed_values.items():
+        if type(bundle[name]) is not type(expected) or bundle[name] != expected:
+            raise ValueError(f"model bundle {name} does not match the product")
     if bundle["test_evaluated"] is not False:
         raise ValueError("model bundle must have test_evaluated set to false")
+    for name in ("data_sha256", "implementation_sha256"):
+        if not isinstance(bundle[name], str) or re.fullmatch(r"[0-9a-f]{64}", bundle[name]) is None:
+            raise ValueError(f"model bundle {name} is not a SHA-256")
+    if bundle["data_sha256"] != AUTHORIZED_DATA_SHA256:
+        raise ValueError("model bundle data_sha256 is not authorized")
+    if bundle["implementation_sha256"] != _implementation_sha256():
+        raise ValueError("model bundle implementation_sha256 is stale")
     return bundle

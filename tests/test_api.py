@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import json
 import math
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import joblib
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
-from src.product import BUNDLE_VERSION, PRODUCT_FEATURES
+from src.product import (
+    AUTHORIZED_DATA_SHA256,
+    BUNDLE_VERSION,
+    EVENT_DEFINITION,
+    MODEL_VERSION,
+    PRODUCT_FEATURES,
+    _implementation_sha256,
+)
 
 
 class ApiTests(unittest.TestCase):
@@ -35,26 +44,30 @@ class ApiTests(unittest.TestCase):
         model = model or LogisticRegression(random_state=0).fit(features, [1, 1, 0, 0])
         bundle = {
             "bundle_version": BUNDLE_VERSION,
-            "model_version": "test-five-variable-pd",
+            "model_version": MODEL_VERSION,
             "model": model,
             "selected_model_name": "logistic",
             "features": list(PRODUCT_FEATURES),
             "input_schema": {
-                name: {"type": "number", "minimum": 0.0, "maximum": 1000.0}
+                name: {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 200.0 if name == "original_cltv" else 1000.0,
+                }
                 for name in PRODUCT_FEATURES
             },
             "validation_threshold": threshold,
             "validation_metrics": {},
             "target": "default_24m",
             "horizon_months": 24,
-            "event_definition": "test event",
+            "event_definition": EVENT_DEFINITION,
             "development_years": [2015, 2016, 2017, 2018],
             "calibration_year": 2019,
             "validation_year": 2020,
             "test_evaluated": False,
             "data_source": "prepared_freddie_dataset",
-            "data_sha256": "0" * 64,
-            "implementation_sha256": "1" * 64,
+            "data_sha256": AUTHORIZED_DATA_SHA256,
+            "implementation_sha256": _implementation_sha256(),
         }
         path = directory / "pd-model.joblib"
         joblib.dump(bundle, path)
@@ -73,7 +86,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(
             {
                 "status": "ok",
-                "model_version": "test-five-variable-pd",
+                "model_version": MODEL_VERSION,
                 "model_name": "logistic",
                 "target": "default_24m",
                 "horizon_months": 24,
@@ -99,7 +112,7 @@ class ApiTests(unittest.TestCase):
         )
         self.assertTrue(math.isfinite(body["risk_score"]))
         self.assertEqual("elevated", body["risk_level"])
-        self.assertEqual("test-five-variable-pd", body["model_version"])
+        self.assertEqual(MODEL_VERSION, body["model_version"])
         self.assertEqual(24, body["horizon_months"])
         self.assertEqual("Experimental academic risk score; not a credit decision.", body["warning"])
 
@@ -140,6 +153,50 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(400, response.status_code)
         self.assertEqual({"error": "invalid request"}, response.get_json())
+
+    def test_predict_rejects_bodies_over_4096_bytes_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            oversized = b" " * 4097 + json.dumps(self.payload).encode()
+            response = self._client(Path(directory)).post(
+                "/predict",
+                data=oversized,
+                content_type="application/json",
+            )
+
+        self.assertEqual(400, response.status_code)
+        self.assertEqual({"error": "invalid request"}, response.get_json())
+
+    def test_predict_rejects_deep_json_under_the_limit_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            nested = "[" * 1500 + "0" + "]" * 1500
+            self.assertLess(len(nested), 4096)
+            with patch("src.api.json.loads", side_effect=RecursionError("nested JSON")):
+                response = self._client(Path(directory)).post(
+                    "/predict",
+                    data=nested,
+                    content_type="application/json",
+                )
+
+        self.assertEqual(400, response.status_code)
+        self.assertEqual({"error": "invalid request"}, response.get_json())
+
+    def test_app_has_only_health_and_predict_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            client = self._client(Path(directory))
+
+        self.assertEqual({"/health", "/predict"}, {rule.rule for rule in client.application.url_map.iter_rules()})
+
+    def test_app_rejects_a_defective_bundle_before_serving(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._bundle_path(root)
+            bundle = joblib.load(path)
+            bundle["validation_threshold"] = float("nan")
+            joblib.dump(bundle, path)
+            from src.api import create_app
+
+            with self.assertRaisesRegex(ValueError, "validation_threshold"):
+                create_app(path)
 
     def test_predict_treats_nonfinite_model_output_as_an_internal_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

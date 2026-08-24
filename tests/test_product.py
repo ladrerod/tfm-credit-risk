@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
-import subprocess
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,6 +17,7 @@ import pandas as pd
 import zstandard as zstd
 
 from src.product import (
+    AUTHORIZED_DATA_SHA256,
     BUNDLE_VERSION,
     PRODUCT_FEATURES,
     _implementation_sha256,
@@ -63,69 +66,84 @@ class ProductTests(unittest.TestCase):
         target.write_bytes(compressed)
         return target
 
+    def _train_product(self, source: Path, **kwargs: object) -> dict[str, object]:
+        with patch("src.product.AUTHORIZED_DATA_SHA256", self._sha256(source)):
+            return train_product(source, **kwargs)
+
+    def _load_bundle(self, path: Path, source: Path) -> dict[str, object]:
+        with patch("src.product.AUTHORIZED_DATA_SHA256", self._sha256(source)):
+            return load_bundle(path)
+
     def test_rejects_an_unexpected_data_hash_before_reading(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self._prepared_file(Path(directory))
             with patch("src.product.read_csv_zst", side_effect=AssertionError("reader called")):
                 with self.assertRaisesRegex(ValueError, "SHA-256"):
-                    train_product(source, expected_sha256="0" * 64)
+                    train_product(source)
 
-    def test_implementation_hash_changes_when_metrics_change(self) -> None:
-        def digest(metrics_hash: str) -> str:
+    def test_implementation_hash_changes_with_every_prediction_dependency(self) -> None:
+        def digest(changed_name: str | None) -> str:
             with patch(
                 "src.product.file_sha256",
-                side_effect=lambda path: metrics_hash if path.name == "metrics.py" else "0" * 64,
+                side_effect=lambda path: "f" * 64 if path.name == changed_name else "0" * 64,
             ):
                 return _implementation_sha256()
 
-        self.assertNotEqual(digest("0" * 64), digest("f" * 64))
+        baseline = digest(None)
+        for name in ("product.py", "pd_model.py", "metrics.py", "data_access.py", "integrity.py", "api.py"):
+            with self.subTest(name=name):
+                self.assertNotEqual(baseline, digest(name))
 
     def test_loader_rejects_boolean_or_float_bundle_versions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = self._prepared_file(root)
-            bundle = train_product(source, chunksize=48, expected_sha256=self._sha256(source))
+            bundle = self._train_product(source, chunksize=48)
             output = root / "pd-model.joblib"
             for version in (True, 1.0):
                 invalid = dict(bundle, bundle_version=version)
                 joblib.dump(invalid, output)
                 with self.assertRaisesRegex(ValueError, "version"):
-                    load_bundle(output)
+                    self._load_bundle(output, source)
 
     def test_cli_writes_a_bundle_and_prints_only_aggregate_identity(self) -> None:
+        from scripts import train_model
+
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = self._prepared_file(root)
             output = root / "models" / "pd-model.joblib"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "scripts.train_model",
-                    "--data",
-                    str(source),
-                    "--output",
-                    str(output),
-                    "--expected-sha256",
-                    self._sha256(source),
-                ],
-                cwd=Path(__file__).parents[1],
-                capture_output=True,
-                text=True,
-            )
+            stdout = io.StringIO()
+            with (
+                patch("src.product.AUTHORIZED_DATA_SHA256", self._sha256(source)),
+                patch.object(sys, "argv", ["train_model", "--data", str(source), "--output", str(output)]),
+                redirect_stdout(stdout),
+            ):
+                train_model.main()
 
-            self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(
                 {"model_version", "selected_model_name", "data_sha256", "validation_metrics"},
-                set(ast.literal_eval(result.stdout)),
+                set(ast.literal_eval(stdout.getvalue())),
             )
-            self.assertFalse(load_bundle(output)["test_evaluated"])
+            self.assertFalse(self._load_bundle(output, source)["test_evaluated"])
+
+    def test_cli_rejects_an_expected_hash_override(self) -> None:
+        from scripts import train_model
+
+        with patch.object(
+            sys,
+            "argv",
+            ["train_model", "--data", "input.zst", "--output", "model.joblib", "--expected-sha256", "0" * 64],
+        ):
+            with redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    train_model.main()
 
     def test_trains_only_through_2020_and_builds_the_five_field_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self._prepared_file(Path(directory))
 
-            bundle = train_product(source, expected_sha256=self._sha256(source))
+            bundle = self._train_product(source)
 
         self.assertEqual(BUNDLE_VERSION, bundle["bundle_version"])
         self.assertEqual(list(PRODUCT_FEATURES), bundle["features"])
@@ -152,23 +170,23 @@ class ProductTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = self._prepared_file(root)
-            bundle = train_product(source, chunksize=48, expected_sha256=self._sha256(source))
+            bundle = self._train_product(source, chunksize=48)
             output = root / "models" / "pd-model.joblib"
             save_bundle(bundle, output)
 
-            loaded = load_bundle(output)
+            loaded = self._load_bundle(output, source)
             self.assertEqual(bundle["data_sha256"], loaded["data_sha256"])
             loaded["features"] = list(reversed(PRODUCT_FEATURES))
             joblib.dump(loaded, output)
 
             with self.assertRaisesRegex(ValueError, "feature order"):
-                load_bundle(output)
+                self._load_bundle(output, source)
 
     def test_loader_rejects_missing_keys_wrong_version_and_test_evaluation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = self._prepared_file(root)
-            bundle = train_product(source, chunksize=48, expected_sha256=self._sha256(source))
+            bundle = self._train_product(source, chunksize=48)
             output = root / "pd-model.joblib"
             for change, message in (
                 (lambda value: value.pop("model"), "missing keys"),
@@ -179,7 +197,44 @@ class ProductTests(unittest.TestCase):
                 change(invalid)
                 joblib.dump(invalid, output)
                 with self.assertRaisesRegex(ValueError, message):
-                    load_bundle(output)
+                    self._load_bundle(output, source)
+
+    def test_loader_rejects_incoherent_consumed_bundle_values(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self._prepared_file(root)
+            bundle = self._train_product(source, chunksize=48)
+            output = root / "pd-model.joblib"
+            bad_values = (
+                (lambda value: value.__setitem__("model_version", "other"), "model_version"),
+                (lambda value: value.__setitem__("model", object()), "predict_proba"),
+                (lambda value: value.__setitem__("selected_model_name", 1), "selected_model_name"),
+                (lambda value: value.__setitem__("input_schema", {}), "input_schema"),
+                (lambda value: value["input_schema"]["origination_fico"].__setitem__("type", "integer"), "input_schema"),
+                (lambda value: value["input_schema"]["original_dti"].__setitem__("minimum", float("nan")), "input_schema"),
+                (lambda value: value["input_schema"]["original_dti"].__setitem__("minimum", 100), "input_schema"),
+                (lambda value: value["input_schema"]["original_cltv"].__setitem__("maximum", 201), "original_cltv"),
+                (lambda value: value.__setitem__("validation_threshold", float("nan")), "validation_threshold"),
+                (lambda value: value.__setitem__("validation_threshold", -0.01), "validation_threshold"),
+                (lambda value: value.__setitem__("validation_metrics", []), "validation_metrics"),
+                (lambda value: value.__setitem__("target", "other"), "target"),
+                (lambda value: value.__setitem__("horizon_months", True), "horizon_months"),
+                (lambda value: value.__setitem__("event_definition", "other"), "event_definition"),
+                (lambda value: value.__setitem__("development_years", [2015]), "development_years"),
+                (lambda value: value.__setitem__("calibration_year", 2018), "calibration_year"),
+                (lambda value: value.__setitem__("validation_year", 2021), "validation_year"),
+                (lambda value: value.__setitem__("data_source", "other"), "data_source"),
+                (lambda value: value.__setitem__("data_sha256", "g" * 64), "data_sha256"),
+                (lambda value: value.__setitem__("data_sha256", AUTHORIZED_DATA_SHA256), "data_sha256"),
+                (lambda value: value.__setitem__("implementation_sha256", "0" * 64), "implementation_sha256"),
+            )
+            for change, message in bad_values:
+                with self.subTest(message=message):
+                    invalid = copy.deepcopy(bundle)
+                    change(invalid)
+                    joblib.dump(invalid, output)
+                    with self.assertRaisesRegex(ValueError, message):
+                        self._load_bundle(output, source)
 
     def test_atomic_save_removes_a_partial_file_when_joblib_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
