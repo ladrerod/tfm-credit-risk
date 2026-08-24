@@ -57,8 +57,13 @@ def _available(
     boundary: pd.Timestamp,
 ) -> pd.DataFrame:
     dates = pd.to_datetime(frame[date_column], errors="coerce")
+    cutoff = pd.to_datetime(frame["source_cutoff_date"], errors="coerce")
     return frame.loc[
-        frame["cohort_year"].isin(years) & dates.notna() & dates.le(boundary)
+        frame["cohort_year"].isin(years)
+        & dates.notna()
+        & cutoff.notna()
+        & dates.le(boundary)
+        & dates.le(cutoff)
     ].copy()
 
 
@@ -221,6 +226,7 @@ def _expected_loss(
         "original_upb",
         "ead_ratio",
         "lgd",
+        "realized_lgd",
         "ead_label_available_date",
         "lgd_label_available_date",
         "source_cutoff_date",
@@ -230,7 +236,17 @@ def _expected_loss(
         cutoff = pd.to_datetime(defaults["source_cutoff_date"], errors="coerce")
         realized_upb = pd.to_numeric(defaults["original_upb"], errors="coerce")
         realized_ead = pd.to_numeric(defaults["ead_ratio"], errors="coerce")
-        realized_lgd = pd.to_numeric(defaults["lgd"], errors="coerce")
+        predictive_lgd = pd.to_numeric(defaults["lgd"], errors="coerce")
+        realized_lgd = pd.to_numeric(defaults["realized_lgd"], errors="coerce")
+        consistent_lgd = pd.Series(
+            np.isclose(
+                predictive_lgd,
+                realized_lgd.clip(lower=0.0, upper=2.0),
+                rtol=0.0,
+                atol=1e-12,
+            ),
+            index=defaults.index,
+        )
         eligible = (
             defaults["lgd_eligible"].fillna(False).astype(bool)
             if "lgd_eligible" in defaults
@@ -243,7 +259,7 @@ def _expected_loss(
             & np.isfinite(realized_ead)
             & realized_ead.ge(0)
             & np.isfinite(realized_lgd)
-            & realized_lgd.ge(0)
+            & consistent_lgd
             & pd.to_datetime(defaults["ead_label_available_date"], errors="coerce").le(cutoff)
             & pd.to_datetime(defaults["lgd_label_available_date"], errors="coerce").le(cutoff)
         ]
@@ -308,7 +324,9 @@ def _expected_loss(
         "predicted_total": predicted,
         "realized_total": realized,
         "total_error": predicted - realized,
-        "portfolio_relative_error": abs(predicted - realized) / realized if realized else None,
+        "portfolio_relative_error": (
+            abs(predicted - realized) / abs(realized) if realized else None
+        ),
     }
 
 
@@ -327,7 +345,7 @@ def run_walk_forward(
     if missing_temporal:
         raise ValueError(f"backtesting requires temporal columns: {missing_temporal}")
     required = set(pd_config.features).union(numeric, categorical).union(
-        {"cohort_year", pd_config.target, "ead_ratio", "lgd"}
+        {"cohort_year", pd_config.target, "ead_ratio", "lgd", "realized_lgd"}
     )
     missing = sorted(required.difference(frame.columns))
     if missing:

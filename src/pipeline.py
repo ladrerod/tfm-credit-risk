@@ -498,6 +498,7 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         "minimum": float(raw_lgd.min()),
         "maximum": float(raw_lgd.max()),
     }
+    frame["realized_lgd"] = raw_lgd
     frame["lgd"] = raw_lgd.clip(
         float(model_config["lgd_lower_bound"]), float(model_config["lgd_upper_bound"])
     )
@@ -636,7 +637,7 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
     importance_frame = validation.sample(n=min(25_000, len(validation)), random_state=seed)
     monthly_risk = _monthly_risk(monthly_panel, model_config, seed)
     payload = {
-        "version": 2,
+        "version": 3,
         "contains_row_data": False,
         "identity": {
             **identity,

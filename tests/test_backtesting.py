@@ -36,6 +36,7 @@ def _frame() -> pd.DataFrame:
                     "default_24m": event,
                     "ead_ratio": 0.95 + 0.02 * position if event else float("nan"),
                     "lgd": 0.20 + 0.03 * position if event else float("nan"),
+                    "realized_lgd": 0.20 + 0.03 * position if event else float("nan"),
                     "lgd_eligible": bool(event),
                     "source_cutoff_date": pd.Timestamp("2026-03-01"),
                     "pd_label_available_date": available,
@@ -52,6 +53,7 @@ def _frame() -> pd.DataFrame:
             "default_24m": 1,
             "ead_ratio": 1.1,
             "lgd": 0.8,
+            "realized_lgd": 0.8,
             "lgd_eligible": True,
             "pd_label_available_date": pd.Timestamp("2020-02-01"),
             "ead_label_available_date": pd.Timestamp("2020-02-01"),
@@ -91,6 +93,14 @@ class WalkForwardTests(unittest.TestCase):
 
         self.assertEqual(4, before["folds"][0]["pd"]["development_rows"])
         self.assertEqual(before, after)
+
+    def test_labels_after_the_row_source_cutoff_are_excluded(self) -> None:
+        frame = _frame()
+        frame.loc[0, "source_cutoff_date"] = pd.Timestamp("2016-12-01")
+
+        fold = self._run(frame)["folds"][0]
+
+        self.assertEqual(3, fold["pd"]["development_rows"])
 
     def test_invalid_temporal_roles_are_rejected(self) -> None:
         bad = {**FOLD, "validation_year": FOLD["test_year"]}
@@ -181,7 +191,7 @@ class WalkForwardTests(unittest.TestCase):
             ("original_upb", float("nan")),
             ("original_upb", 0.0),
             ("ead_ratio", -0.1),
-            ("lgd", -0.1),
+            ("realized_lgd", float("inf")),
         ):
             with self.subTest(column=column, value=value):
                 frame = _frame()
@@ -192,6 +202,33 @@ class WalkForwardTests(unittest.TestCase):
 
                 self.assertEqual("unavailable", result["status"])
                 self.assertIn("economically valid", result["reason"])
+
+    def test_expected_loss_uses_unclipped_negative_realized_lgd(self) -> None:
+        frame = _frame()
+        defaults = frame["cohort_year"].eq(2020) & frame["default_24m"].eq(1)
+        first_default = frame.index[defaults][0]
+        frame.loc[first_default, "realized_lgd"] = -0.5
+        frame.loc[first_default, "lgd"] = 0.0
+
+        result = self._run(frame, minimum_lgd_rows=2)["folds"][0]["expected_loss"]
+
+        self.assertEqual("evaluated", result["status"])
+        self.assertAlmostEqual(-19_210.0, result["realized_total"])
+        self.assertAlmostEqual(
+            abs(result["predicted_total"] - result["realized_total"])
+            / abs(result["realized_total"]),
+            result["portfolio_relative_error"],
+        )
+
+    def test_expected_loss_rejects_inconsistent_lgd_targets(self) -> None:
+        frame = _frame()
+        defaults = frame["cohort_year"].eq(2020) & frame["default_24m"].eq(1)
+        frame.loc[frame.index[defaults][0], "realized_lgd"] = 0.8
+
+        result = self._run(frame, minimum_lgd_rows=2)["folds"][0]["expected_loss"]
+
+        self.assertEqual("unavailable", result["status"])
+        self.assertIn("economically valid", result["reason"])
 
     def test_expected_loss_rejects_nonfinite_portfolio_balance(self) -> None:
         for value in (float("inf"), -1.0):

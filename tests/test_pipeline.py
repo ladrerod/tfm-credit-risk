@@ -74,6 +74,7 @@ class PipelineTests(unittest.TestCase):
             second = run_study("synthetic", output_path=output)
             self.assertEqual(first, second)
             self.assertEqual(first, json.loads(output.read_text(encoding="utf-8")))
+            self.assertEqual(3, first["version"])
             self.assertFalse(first["contains_row_data"])
             self.assertEqual(24, first["methodology"]["target_horizon_months"])
             self.assertIn("pd", first)
