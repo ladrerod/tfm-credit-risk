@@ -24,6 +24,8 @@
 \setlist[enumerate]{leftmargin=6mm,itemsep=1.5pt,topsep=2pt}
 \captionsetup{font=small,labelfont=bf,skip=3pt}
 \renewcommand{\arraystretch}{1.08}
+\let\originalnumberline\numberline
+\renewcommand{\numberline}[1]{\originalnumberline{#1}\hspace{0.3em}}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcolumntype{R}{>{\raggedleft\arraybackslash}p{23mm}}
 \newcommand{\note}[1]{\par\noindent\colorbox{pale}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\small #1}}\par}
