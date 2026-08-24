@@ -116,10 +116,26 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
         months = generator.integers(1, 13, count)
         for index in range(count):
             origin = pd.Timestamp(year, int(months[index]), 1)
+            default_event_date = origin + pd.DateOffset(months=12) if default[index] else pd.NaT
+            zero_balance_date = (
+                default_event_date + pd.DateOffset(months=1)
+                if pd.notna(default_event_date)
+                else pd.NaT
+            )
             rows.append(
                 {
                     "origination_date": origin,
                     "performance_end_date": origin + pd.DateOffset(months=24),
+                    "source_cutoff_date": origin + pd.DateOffset(months=24),
+                    "pd_label_available_date": origin + pd.DateOffset(months=24),
+                    "default_event_date": default_event_date,
+                    "ead_label_available_date": default_event_date,
+                    "zero_balance_date": zero_balance_date,
+                    "lgd_label_available_date": (
+                        zero_balance_date + pd.DateOffset(months=3)
+                        if pd.notna(zero_balance_date)
+                        else pd.NaT
+                    ),
                     "cohort_year": year,
                     "original_interest_rate": float(generator.normal(3.8 + 0.15 * (year - 2017), 0.45)),
                     "original_upb": float(np.clip(generator.lognormal(12.25, 0.45), 50000, 1500000)),
@@ -145,6 +161,7 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
                     "default_24m": int(default[index]),
                     "ead_ratio": float(np.clip(1 + generator.normal(0, 0.02), 0.85, 1.20)),
                     "lgd": float(lgd[index]),
+                    "lgd_eligible": bool(default[index]),
                 }
             )
     return pd.DataFrame(rows)
@@ -422,9 +439,18 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         frame, identity = _private_data(data_config)
         monthly_panel, monthly_identity = _private_monthly_data(data_config)
         identity.update(monthly_identity)
-    frame["origination_date"] = pd.to_datetime(frame["origination_date"])
-    if "performance_end_date" in frame:
-        frame["performance_end_date"] = pd.to_datetime(frame["performance_end_date"])
+    for column in (
+        "origination_date",
+        "performance_end_date",
+        "source_cutoff_date",
+        "pd_label_available_date",
+        "default_event_date",
+        "ead_label_available_date",
+        "zero_balance_date",
+        "lgd_label_available_date",
+    ):
+        if column in frame:
+            frame[column] = pd.to_datetime(frame[column])
     validate_frame(
         frame,
         required=(*NUMERIC_FEATURES, *CATEGORICAL_FEATURES, *MACRO_FEATURES, "default_24m", "ead_ratio", "lgd"),
@@ -622,7 +648,9 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
             "validation_metrics": fitted_pd["metrics"],
             "test_metrics": test_pd_metrics,
             "test_calibration": calibration_table(test["default_24m"], test_probability),
-            "test_cohorts": cohort_metrics(test["cohort_year"], test["default_24m"], test_probability),
+            "test_cohorts": cohort_metrics(
+                test["cohort_year"], test["default_24m"], test_probability, fitted_pd["threshold"]
+            ),
             "macro_challenger": macro_payload,
         },
         "monthly_risk": monthly_risk,

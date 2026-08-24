@@ -83,7 +83,7 @@ def calibration_table(
 
 
 def cohort_metrics(
-    cohort: Iterable[int], target: Iterable[int], probability: Iterable[float]
+    cohort: Iterable[int], target: Iterable[int], probability: Iterable[float], threshold: float
 ) -> list[dict[str, object]]:
     years = np.asarray(cohort)
     y = np.asarray(target)
@@ -91,6 +91,9 @@ def cohort_metrics(
     if not len(years) == len(y) == len(p):
         raise ValueError("cohort inputs must align")
     return [
-        {"cohort_year": int(year), **classification_metrics(y[years == year], p[years == year], 0.5)}
+        {
+            "cohort_year": int(year),
+            **classification_metrics(y[years == year], p[years == year], threshold),
+        }
         for year in sorted(set(years))
     ]

@@ -307,34 +307,44 @@ def _loan_result(
     if first_event is None and maximum - first_number < 23:
         return None
 
-    exposure = float("nan")
+    exposure, ead_label_available_date = float("nan"), pd.NaT
     if default_record is not None:
         exposure = _number(default_record.current_upb)
-        if not np.isfinite(exposure) or exposure <= 0:
-            later_removal = pd.to_numeric(
-                records.loc[
-                    records["performance_number"].ge(int(default_record.performance_number)),
-                    "zero_balance_removal_upb",
-                ],
-                errors="coerce",
+        if np.isfinite(exposure) and exposure > 0:
+            ead_label_available_date = _month_timestamp(int(default_record.performance_number))
+        else:
+            later_removal = records.loc[
+                records["performance_number"].ge(int(default_record.performance_number))
+            ].copy()
+            later_removal["zero_balance_removal_upb"] = pd.to_numeric(
+                later_removal["zero_balance_removal_upb"], errors="coerce"
             )
-            later_removal = later_removal.loc[later_removal.gt(0)]
-            exposure = float(later_removal.iloc[0]) if not later_removal.empty else float("nan")
+            later_removal = later_removal.loc[later_removal["zero_balance_removal_upb"].gt(0)]
+            if not later_removal.empty:
+                exposure = float(later_removal.iloc[0].zero_balance_removal_upb)
+                ead_label_available_date = _month_timestamp(
+                    int(later_removal.iloc[0].performance_number)
+                )
     loss_rows = records.loc[records["actual_loss"].astype(str).str.strip().ne("")]
     loss = loss_rows.iloc[-1] if not loss_rows.empty else None
     has_defect = records["defect_settlement"].astype(str).str.strip().ne("").any()
     lgd, lgd_eligible, zero_balance_date = float("nan"), False, pd.NaT
+    lgd_label_available_date = pd.NaT
     if loss is not None:
         zero_balance_date = pd.to_datetime(loss["zero_balance_date"], format="%Y%m", errors="coerce")
         amount = None if has_defect else _loss_amount(loss.to_dict())
-        lgd_eligible = bool(
+        lgd_candidate = bool(
             default_record is not None
             and amount is not None
             and str(loss["zero_balance_code"]).strip() in DEFAULT_CODES
             and pd.notna(zero_balance_date)
-            and zero_balance_date <= cutoff_date - pd.DateOffset(months=3)
             and np.isfinite(exposure)
             and exposure > 0
+        )
+        if lgd_candidate:
+            lgd_label_available_date = zero_balance_date + pd.DateOffset(months=3)
+        lgd_eligible = bool(
+            lgd_candidate and zero_balance_date <= cutoff_date - pd.DateOffset(months=3)
         )
         if lgd_eligible:
             lgd = amount / exposure
@@ -343,12 +353,16 @@ def _loan_result(
         **features,
         "loan_key": loan_key,
         "performance_end_date": _month_timestamp(maximum),
+        "source_cutoff_date": cutoff_date,
+        "pd_label_available_date": _month_timestamp(first_number + 23),
         "default_event_date": (
             _month_timestamp(int(default_record.performance_number))
             if default_record is not None
             else pd.NaT
         ),
+        "ead_label_available_date": ead_label_available_date,
         "zero_balance_date": zero_balance_date,
+        "lgd_label_available_date": lgd_label_available_date,
         "default_24m": int(default_record is not None),
         "ead_ratio": (
             exposure / original_upb

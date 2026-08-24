@@ -357,6 +357,13 @@ class FreddieDataTests(unittest.TestCase):
             defaulted = loans.loc[loans["default_24m"].eq(1)].iloc[0]
             self.assertEqual(0.8, defaulted["ead_ratio"])
             self.assertAlmostEqual(35000 / 80000, defaulted["lgd"])
+            self.assertEqual(pd.Timestamp("2026-03-01"), defaulted["source_cutoff_date"])
+            self.assertEqual(pd.Timestamp("2016-12-01"), defaulted["pd_label_available_date"])
+            self.assertEqual(pd.Timestamp("2015-04-01"), defaulted["ead_label_available_date"])
+            self.assertEqual(
+                defaulted["zero_balance_date"] + pd.DateOffset(months=3),
+                defaulted["lgd_label_available_date"],
+            )
 
     def test_prepares_dataset_outputs_and_lineage(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
