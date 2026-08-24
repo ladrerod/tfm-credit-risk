@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pandas as pd
 import zstandard as zstd
 
-from src.pipeline import _implementation_sha256, _private_data, run_study
+from src.pipeline import _implementation_sha256, _private_data, _private_monthly_data, run_study
 
 
 class PipelineTests(unittest.TestCase):
@@ -45,6 +45,28 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(len(compressed), identity["analysis_bytes"])
             self.assertEqual(hashlib.sha256(compressed).hexdigest(), identity["analysis_sha256"])
 
+    def test_reads_partitioned_monthly_panel_with_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            panel_dir = root / "freddie-monthly"
+            panel_dir.mkdir()
+            frame = pd.DataFrame(
+                {"loan_key": ["a", "b"], "current_state": ["current", "30"], "next_state": ["30", "current"]}
+            )
+            path = panel_dir / "2019Q1.csv.zst"
+            compressed = zstd.ZstdCompressor(level=3).compress(frame.to_csv(index=False).encode())
+            path.write_bytes(compressed)
+
+            with patch("src.pipeline.ROOT", root):
+                actual, identity = _private_monthly_data(
+                    {"monthly_directory": "freddie-monthly", "monthly_sample_modulus": 1, "chunk_rows": 1}
+                )
+
+            pd.testing.assert_frame_equal(frame, actual, check_dtype=False)
+            self.assertEqual(1, identity["monthly_partitions"])
+            self.assertEqual(len(compressed), identity["monthly_bytes"])
+            self.assertEqual(64, len(identity["monthly_sha256"]))
+
     def test_synthetic_run_produces_aggregate_reproducible_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "study-results.json"
@@ -59,6 +81,13 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("expected_loss", first)
             self.assertIn("scenarios", first)
             self.assertIn("monitoring", first)
+            self.assertTrue(first["monthly_risk"]["available"])
+            self.assertEqual("multinomial_logistic", first["monthly_risk"]["champion_name"])
+            self.assertFalse(first["monthly_risk"]["contains_row_data"])
+            self.assertEqual(
+                {"multinomial_logistic", "hist_gradient_boosting"},
+                set(first["monthly_risk"]["validation_metrics"]),
+            )
             self.assertIn("ead_observed_tail", first["data_quality"])
             self.assertGreaterEqual(len(first["internal_bank_data_gaps"]), 5)
             if first["loss_components"]["decision_grade"]:

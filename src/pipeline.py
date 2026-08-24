@@ -20,6 +20,7 @@ from .integrity import file_sha256, write_json_atomic
 from .loss_models import regression_metrics, train_loss_models
 from .metrics import calibration_table, classification_metrics, cohort_metrics
 from .monitoring import build_alert, jensen_shannon, psi
+from .monthly_model import CANONICAL_STATES, MultiStateConfig, multistate_metrics, train_and_compare_multistate
 from .pd_model import PDConfig, train_and_select
 from .scenarios import MacroShock, Policy, evaluate_scenario
 
@@ -66,8 +67,8 @@ INTERNAL_BANK_DATA_GAPS = [
     },
     {
         "domain": "Servicing y recuperación",
-        "fields": "pagos, curas, modificaciones, gestiones de cobro, fechas judiciales, recobros, gastos y write-offs",
-        "impact": "los flujos publicados permiten una LGD académica, pero no una reconciliación contable bancaria",
+        "fields": "pagos contractuales y reales, detalle de modificaciones, gestiones de cobro, fechas judiciales y reconciliación de write-offs",
+        "impact": "Freddie publica estados mensuales, curas y componentes agregados de pérdida, pero no el expediente operativo y contable interno",
     },
     {
         "domain": "Gobierno y etiquetas",
@@ -147,6 +148,153 @@ def _synthetic_data(seed: int) -> pd.DataFrame:
                 }
             )
     return pd.DataFrame(rows)
+
+
+def _synthetic_monthly_data(frame: pd.DataFrame) -> pd.DataFrame:
+    transitions = (
+        ("current", "current"),
+        ("current", "30"),
+        ("30", "current"),
+        ("30", "60"),
+        ("60", "90_plus"),
+        ("90_plus", "default"),
+        ("current", "prepay"),
+        ("30", "30"),
+        ("60", "60"),
+        ("90_plus", "90_plus"),
+    )
+    rows = []
+    for year, cohort in frame.groupby("cohort_year", sort=True):
+        for position, row in enumerate(cohort.head(600).itertuples(index=False)):
+            current_state, next_state = transitions[position % len(transitions)]
+            age = 1 + position % 24
+            rows.append(
+                {
+                    "loan_key": f"synthetic-{int(year)}-{position}",
+                    "cohort_year": int(year),
+                    "loan_age_months": age,
+                    "months_since_first_payment": age - 1,
+                    "monthly_ead_ratio": float(np.clip(1 - 0.18 * age / row.original_loan_term, 0.4, 1.2)),
+                    "current_interest_rate": row.original_interest_rate,
+                    "original_cltv": row.original_cltv,
+                    "original_dti": row.original_dti,
+                    "origination_fico": row.origination_fico,
+                    "occupancy_status": row.occupancy_status,
+                    "property_state": row.property_state,
+                    "current_state": current_state,
+                    "next_state": next_state,
+                    "consecutive_month": True,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _private_monthly_data(data_config: dict[str, object]) -> tuple[pd.DataFrame | None, dict[str, object]]:
+    directory = ROOT / str(data_config.get("monthly_directory", "freddie-monthly"))
+    if not directory.is_dir():
+        return None, {}
+    existing = {path.name: path for path in directory.glob("*.csv.zst")}
+    years = data_config.get("monthly_years")
+    quarters = data_config.get("monthly_quarters")
+    if years is not None and quarters is not None:
+        expected = {f"{int(year)}Q{int(quarter)}.csv.zst" for year in years for quarter in quarters}
+        if set(existing) != expected:
+            missing = sorted(expected.difference(existing))
+            unexpected = sorted(set(existing).difference(expected))
+            raise ValueError(
+                f"monthly partition set does not match configuration; missing={missing}, unexpected={unexpected}"
+            )
+        partitions = [existing[name] for name in sorted(expected)]
+    else:
+        partitions = [existing[name] for name in sorted(existing)]
+    if not partitions:
+        return None, {}
+    modulus = int(data_config.get("monthly_sample_modulus", 100))
+    if modulus < 1:
+        raise ValueError("monthly_sample_modulus must be positive")
+    frames = []
+    digest = hashlib.sha256()
+    for path in partitions:
+        digest.update(path.name.encode())
+        digest.update(bytes.fromhex(file_sha256(path)))
+        for chunk in read_csv_zst(path, chunksize=int(data_config["chunk_rows"])):
+            if "loan_key" not in chunk:
+                raise ValueError(f"monthly partition is missing loan_key: {path.name}")
+            for column in ("current_state", "next_state"):
+                if column in chunk:
+                    chunk[column] = chunk[column].astype("string")
+            keys = chunk["loan_key"].astype(str)
+            selected = {
+                key
+                for key in keys.unique()
+                if int.from_bytes(hashlib.blake2b(key.encode(), digest_size=8).digest(), "big") % modulus == 0
+            }
+            if selected:
+                frames.append(chunk.loc[keys.isin(selected)])
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(), {
+        "monthly_partitions": len(partitions),
+        "monthly_bytes": sum(path.stat().st_size for path in partitions),
+        "monthly_sha256": digest.hexdigest(),
+    }
+
+
+def _monthly_risk(panel: pd.DataFrame | None, model_config: dict[str, object], seed: int) -> dict[str, object]:
+    unavailable = {"available": False, "contains_row_data": False, "reason": "monthly panel not prepared"}
+    if panel is None or panel.empty:
+        return unavailable
+    required = {"cohort_year", "current_state", "next_state", "loan_key", "consecutive_month"}
+    missing = sorted(required.difference(panel.columns))
+    if missing:
+        raise ValueError(f"monthly panel is missing required columns: {missing}")
+    mask = panel["current_state"].isin(CANONICAL_STATES) & panel["next_state"].isin(CANONICAL_STATES)
+    consecutive = panel["consecutive_month"]
+    mask &= (
+        consecutive.fillna(False)
+        if consecutive.dtype == bool
+        else consecutive.astype(str).str.lower().isin({"true", "1"})
+    )
+    panel = panel.loc[mask].copy()
+    if panel.empty:
+        return {**unavailable, "reason": "monthly panel has no consecutive canonical transitions"}
+    panel["cohort_year"] = pd.to_numeric(panel["cohort_year"], errors="raise").astype(int)
+    cohorts = {
+        "development": panel.loc[panel["cohort_year"].isin(model_config["development_years"])].copy(),
+        "calibration": panel.loc[panel["cohort_year"].eq(int(model_config["calibration_year"]))].copy(),
+        "validation": panel.loc[panel["cohort_year"].eq(int(model_config["validation_year"]))].copy(),
+        "test": panel.loc[panel["cohort_year"].isin(model_config["test_years"])].copy(),
+    }
+    empty = [name for name, cohort in cohorts.items() if cohort.empty]
+    if empty:
+        return {**unavailable, "reason": f"monthly panel has empty temporal cohorts: {', '.join(empty)}"}
+    for name in ("development", "calibration"):
+        missing_states = sorted(set(CANONICAL_STATES).difference(cohorts[name]["next_state"]))
+        if missing_states:
+            return {
+                **unavailable,
+                "reason": f"monthly {name} cohort is missing states: {', '.join(missing_states)}",
+            }
+    config = MultiStateConfig(seed=seed)
+    fitted = train_and_compare_multistate(
+        cohorts["development"], cohorts["calibration"], cohorts["validation"], config
+    )
+    champion = fitted["models"][fitted["champion_name"]]
+    test_probability = champion.predict_proba(cohorts["test"][list(config.features)])
+    return {
+        "available": True,
+        "contains_row_data": False,
+        "states": list(CANONICAL_STATES),
+        "champion_name": fitted["champion_name"],
+        "challenger_name": "hist_gradient_boosting",
+        "validation_design": "originating_vintage; performance dates may overlap across cohorts",
+        "validation_metrics": fitted["validation_metrics"],
+        "class_counts": fitted["class_counts"],
+        "calibration_adequacy": fitted["calibration_adequacy"],
+        "test_metrics": multistate_metrics(cohorts["test"], test_probability, champion.classes_),
+        "sample": {
+            name: {"rows": int(len(cohort)), "loans": int(cohort["loan_key"].nunique())}
+            for name, cohort in cohorts.items()
+        },
+    }
 
 
 def _private_data(data_config: dict[str, object]) -> tuple[pd.DataFrame, dict[str, object]]:
@@ -263,9 +411,17 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
     seed = int(model_config["seed"])
     if mode == "synthetic":
         frame = _synthetic_data(seed)
-        identity = {"source": "generated_in_memory", "rows": int(len(frame)), "seed": seed}
+        monthly_panel = _synthetic_monthly_data(frame)
+        identity = {
+            "source": "generated_in_memory",
+            "rows": int(len(frame)),
+            "monthly_rows": int(len(monthly_panel)),
+            "seed": seed,
+        }
     else:
         frame, identity = _private_data(data_config)
+        monthly_panel, monthly_identity = _private_monthly_data(data_config)
+        identity.update(monthly_identity)
     frame["origination_date"] = pd.to_datetime(frame["origination_date"])
     if "performance_end_date" in frame:
         frame["performance_end_date"] = pd.to_datetime(frame["performance_end_date"])
@@ -307,15 +463,31 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
     pd_model = fitted_pd["selected_model"]
     test_probability = pd_model.predict_proba(test[list(pd_config.features)])[:, 1]
     test_pd_metrics = classification_metrics(test["default_24m"], test_probability, fitted_pd["threshold"])
-    macro_pd_config = PDConfig(NUMERIC_FEATURES + MACRO_FEATURES, CATEGORICAL_FEATURES, seed)
-    macro_pd = train_and_select(development, calibration, validation, macro_pd_config)
-    base_validation = fitted_pd["metrics"][fitted_pd["selected_name"]]
-    macro_validation = macro_pd["metrics"][macro_pd["selected_name"]]
-    macro_promoted = bool(
-        macro_validation["brier"] < base_validation["brier"]
-        and macro_validation["log_loss"] < base_validation["log_loss"]
-        and (macro_validation["roc_auc"] or 0) >= (base_validation["roc_auc"] or 0)
-    )
+    if all(
+        part[name].notna().any()
+        for part in (development, calibration, validation)
+        for name in MACRO_FEATURES
+    ):
+        macro_pd_config = PDConfig(NUMERIC_FEATURES + MACRO_FEATURES, CATEGORICAL_FEATURES, seed)
+        macro_pd = train_and_select(development, calibration, validation, macro_pd_config)
+        base_validation = fitted_pd["metrics"][fitted_pd["selected_name"]]
+        macro_validation = macro_pd["metrics"][macro_pd["selected_name"]]
+        macro_payload = {
+            "available": True,
+            "selected_name": macro_pd["selected_name"],
+            "validation_metrics": macro_validation,
+            "promoted": bool(
+                macro_validation["brier"] < base_validation["brier"]
+                and macro_validation["log_loss"] < base_validation["log_loss"]
+                and (macro_validation["roc_auc"] or 0) >= (base_validation["roc_auc"] or 0)
+            ),
+        }
+    else:
+        macro_payload = {
+            "available": False,
+            "promoted": False,
+            "reason": "macro features are unavailable in the prepared data",
+        }
     ead_eligible = frame["default_24m"].eq(1) & frame["ead_ratio"].notna()
     lgd_eligible = frame["default_24m"].eq(1) & frame["lgd"].notna()
     if "lgd_eligible" in frame:
@@ -393,8 +565,9 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         for row in drift
     ]
     importance_frame = validation.sample(n=min(25_000, len(validation)), random_state=seed)
+    monthly_risk = _monthly_risk(monthly_panel, model_config, seed)
     payload = {
-        "version": 1,
+        "version": 2,
         "contains_row_data": False,
         "identity": {
             **identity,
@@ -435,7 +608,11 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
             },
         },
         "data_quality": {
-            **summarize_eda(frame, target="default_24m", cohort="cohort_year"),
+            **summarize_eda(
+                frame.drop(columns=["loan_key", "record_key"], errors="ignore"),
+                target="default_24m",
+                cohort="cohort_year",
+            ),
             "ead_observed_tail": ead_tail,
             "lgd_observed_tail": lgd_tail,
         },
@@ -446,12 +623,9 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
             "test_metrics": test_pd_metrics,
             "test_calibration": calibration_table(test["default_24m"], test_probability),
             "test_cohorts": cohort_metrics(test["cohort_year"], test["default_24m"], test_probability),
-            "macro_challenger": {
-                "selected_name": macro_pd["selected_name"],
-                "validation_metrics": macro_validation,
-                "promoted": macro_promoted,
-            },
+            "macro_challenger": macro_payload,
         },
+        "monthly_risk": monthly_risk,
         "loss_components": loss_payload,
         "expected_loss": expected_loss,
         "scenarios": scenarios,
@@ -475,6 +649,7 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         "limitations": [
             "Academic portfolio study; not a regulatory capital, provisioning, pricing or credit-decision system.",
             "Macro scenarios are transparent sensitivities and not causal forecasts.",
+            "Zero-balance code 01 is split using original maturity; modified extensions need current contractual maturity for exact prepayment labeling.",
             "External validation with authorized bank application, borrower, servicing, recovery and accounting data remains necessary.",
         ],
     }
