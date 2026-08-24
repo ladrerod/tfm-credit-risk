@@ -718,6 +718,27 @@ def run_study(mode: str = "synthetic", *, output_path: str | Path = "outputs/stu
         },
         "monitoring": {"feature_drift": drift, "alerts": alerts},
         "internal_bank_data_gaps": INTERNAL_BANK_DATA_GAPS,
+        "secondary_applications": {
+            "scope": "readiness_only",
+            "ifrs9": {
+                "implemented_for_use": False,
+                "reusable": ["PD/EAD/LGD estimates", "temporal backtesting"],
+                "missing": [
+                    "SICR and staging",
+                    "weighted forward-looking scenarios",
+                    "accounting reconciliation",
+                ],
+            },
+            "crr3_standardised": {
+                "implemented_for_use": False,
+                "reusable": ["exposure estimates", "lineage and monitoring"],
+                "missing": [
+                    "prudential exposure classification",
+                    "eligible collateral and CRM",
+                    "current jurisdictional rule mapping",
+                ],
+            },
+        },
         "limitations": [
             "Academic portfolio study; not a regulatory capital, provisioning, pricing or credit-decision system.",
             "Macro scenarios are transparent sensitivities and not causal forecasts.",

@@ -1,15 +1,15 @@
 # Credit Risk Audit Model
 
-Estudio reproducible de riesgo crediticio hipotecario. El proyecto consume datos Freddie Mac ya preparados y estima probabilidad de incumplimiento (PD), exposición al incumplimiento (EAD), pérdida dado el incumplimiento (LGD) y pérdida esperada. Cuando existe el panel mensual, añade transiciones entre estados de mora, curas y prepago.
+Solución software reproducible para estudiar riesgo crediticio hipotecario con datos Freddie Mac. Estima probabilidad de incumplimiento (PD), exposición al incumplimiento (EAD), pérdida dado el incumplimiento (LGD) y pérdida esperada; cuando existe el panel mensual, añade transiciones entre estados de mora, curas y prepago. Su capacidad de validación principal es un backtesting *walk-forward* con cortes *as-of* que impiden utilizar etiquetas aún no disponibles.
 
-El resultado analítico es un artefacto agregado. La memoria final se mantiene en [LaTeX](tfm/main.tex); el PDF compilado es un entregable local excluido de GitHub. No es un sistema de concesión, pricing, provisiones o capital regulatorio.
+El resultado analítico es un artefacto agregado. La memoria final se mantiene en [LaTeX](tfm/main.tex); el PDF compilado es un entregable local excluido de GitHub. No es un sistema de concesión, pricing, provisiones o capital regulatorio. IFRS 9 y CRR3 estándar se tratan únicamente como rutas secundarias de preparación, nunca como cálculos implementados para uso.
 
 ## Capacidades
 
 - lectura directa del archivo analítico Freddie Mac ya preparado;
 - preparación opcional de los ZIP trimestrales en una vista por préstamo y particiones mensuales;
 - controles de esquema, integridad, privacidad y censura temporal;
-- desarrollo, calibración, validación y prueba mediante cohortes separadas;
+- holdout fuera de tiempo y backtesting walk-forward 2020--2022 con desarrollo expansivo, roles separados y semántica as-of;
 - comparación de modelos para PD, EAD y LGD;
 - modelo mensual multiestado con regresión logística calibrada y HistGradientBoosting como challenger;
 - pérdida esperada, escenarios de cartera y sensibilidad macroeconómica;
@@ -45,7 +45,7 @@ La comprobación pública no requiere datos privados:
 python -m scripts.run_study --mode synthetic
 ```
 
-El panel mensual de este modo contiene una transición artificial por préstamo: comprueba el flujo, pero no representa trayectorias Freddie reales.
+El conjunto y el panel mensual de este modo son artificiales: comprueban contratos, reproducibilidad y funcionamiento del software, pero sus métricas no son evidencia empírica sobre Freddie Mac.
 
 Genera `outputs/study-results.json` con resultados agregados reproducibles.
 
@@ -57,14 +57,16 @@ Si ya tienes el archivo compacto, colócalo como `freddie-analysis.csv.zst` en l
 python -m scripts.run_study --mode full
 ```
 
-Esa ruta conserva compatibilidad con el estudio agregado; si no existe `freddie-monthly`, el artefacto indicará que la capa multiestado no está disponible.
+Esa ruta conserva compatibilidad con el estudio agregado. Un compacto legacy sin `source_cutoff_date`, `pd_label_available_date`, `ead_label_available_date` y `lgd_label_available_date` mantiene el holdout histórico, pero marca el backtesting como no disponible y debe regenerarse. Si no existe `freddie-monthly`, el artefacto indicará además que la capa multiestado no está disponible.
 
 Para reproducir también el histórico mensual, prepara primero los ZIP autorizados:
 
 ```powershell
-python -m scripts.prepare_freddie --raw-root C:\ruta\freddie --years 2015 2016 2017 2018 2019 2020 2021 2022 --quarters 1 --sample-size 50000
+python -m scripts.prepare_freddie --raw-root C:\ruta\freddie --years 2015 2016 2017 2018 2019 2020 2021 2022 --quarters 1 2 3 4 --sample-size 12500
 python -m scripts.run_study --mode full
 ```
+
+La recomendación Q1--Q4 con 12.500 préstamos por trimestre conserva aproximadamente 50.000 préstamos por año y mejora la cobertura estacional respecto a usar solo Q1. Aumentar `--sample-size` aporta más evidencia, especialmente para recuperaciones LGD, a costa de descarga, almacenamiento y tiempo de cálculo.
 
 La preparación genera `freddie-analysis.csv.zst`, particiones `freddie-monthly/YYYYQn.csv.zst` y el linaje `.private/freddie/manifest.json`. El directorio mensual debe estar vacío para impedir mezclas entre ejecuciones. El identificador original no se escribe: ambas vistas se unen mediante una clave sustituta determinista. Estos archivos están excluidos del repositorio y su uso sigue sujeto a los términos de Freddie Mac.
 
@@ -109,7 +111,8 @@ El PDF resultante está excluido del repositorio.
 - rechazo de identificadores privados en el archivo analítico;
 - clave sustituta sin persistir el identificador Freddie original;
 - validación de rangos, claves y componentes económicos;
-- separación temporal estricta para la PD agregada y validación por vintage de originación para el modelo mensual;
+- separación temporal estricta, ventanas walk-forward y filtros de disponibilidad de PD, EAD y LGD en cada fecha as-of;
+- validación mensual actual por vintage de originación; el backtesting por calendario requiere cortar el panel mediante `performance_date`;
 - transiciones solo entre meses consecutivos y estados terminales absorbentes;
 - variables macro disponibles antes de la fecha de originación;
 - resultados agregados sin observaciones individuales;
@@ -117,4 +120,4 @@ El PDF resultante está excluido del repositorio.
 
 ## Limitaciones
 
-El estudio es académico. Los escenarios son sensibilidades transparentes, no previsiones causales. Cualquier uso bancario requeriría datos internos autorizados, reconciliación contable, validación independiente, gobierno del modelo y controles adecuados a la decisión.
+El estudio es académico. El holdout 2021--2022 y sus cohortes no equivalen a folds repetidos; el motor walk-forward queda probado públicamente con datos sintéticos y requiere regenerar el compacto Freddie para producir evidencia real. Los escenarios son sensibilidades transparentes, no previsiones causales. LGD y pérdida esperada no deben declararse backtesteadas mientras falten recuperaciones maduras y cobertura completa. Cualquier uso bancario requeriría datos internos autorizados, validación independiente, gobierno del modelo y controles adecuados a la finalidad.

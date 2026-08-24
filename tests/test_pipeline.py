@@ -114,6 +114,20 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(1, frame["source_cutoff_date"].nunique())
         self.assertEqual(pd.Timestamp("2026-03-01"), frame["source_cutoff_date"].iloc[0])
 
+    def test_secondary_applications_are_readiness_not_regulatory_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_study(
+                "synthetic", output_path=Path(directory) / "study-results.json"
+            )
+
+        self.assertEqual("readiness_only", result["secondary_applications"]["scope"])
+        self.assertFalse(
+            result["secondary_applications"]["ifrs9"]["implemented_for_use"]
+        )
+        self.assertFalse(
+            result["secondary_applications"]["crr3_standardised"]["implemented_for_use"]
+        )
+
     def test_full_legacy_compact_marks_backtesting_for_regeneration(self) -> None:
         frame = _synthetic_data(seed=7).drop(
             columns=[
