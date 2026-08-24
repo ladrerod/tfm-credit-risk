@@ -175,6 +175,79 @@ class WalkForwardTests(unittest.TestCase):
         self.assertEqual("unavailable", incomplete["status"])
         self.assertEqual(0.5, incomplete["realized_loss_coverage"])
 
+    def test_expected_loss_rejects_invalid_realized_default_values(self) -> None:
+        for column, value in (
+            ("original_upb", float("nan")),
+            ("original_upb", 0.0),
+            ("ead_ratio", -0.1),
+            ("lgd", -0.1),
+        ):
+            with self.subTest(column=column, value=value):
+                frame = _frame()
+                defaults = frame["cohort_year"].eq(2020) & frame["default_24m"].eq(1)
+                frame.loc[frame.index[defaults][0], column] = value
+
+                result = self._run(frame, minimum_lgd_rows=2)["folds"][0]["expected_loss"]
+
+                self.assertEqual("unavailable", result["status"])
+                self.assertIn("economically valid", result["reason"])
+
+    def test_expected_loss_rejects_nonfinite_portfolio_balance(self) -> None:
+        for value in (float("inf"), -1.0):
+            with self.subTest(value=value):
+                frame = _frame()
+                non_defaults = frame["cohort_year"].eq(2020) & frame["default_24m"].eq(0)
+                frame.loc[frame.index[non_defaults][0], "original_upb"] = value
+
+                result = self._run(frame, minimum_lgd_rows=2)["folds"][0]["expected_loss"]
+
+                self.assertEqual("unavailable", result["status"])
+                self.assertIn("portfolio original_upb", result["reason"])
+
+    def test_fold_as_of_dates_must_increase(self) -> None:
+        later = {
+            **FOLD,
+            "name": "oot_2021",
+            "as_of_date": "2019-01-01",
+            "development_years": [2015, 2016],
+            "calibration_year": 2017,
+            "validation_year": 2018,
+            "test_year": 2021,
+        }
+        with self.assertRaisesRegex(ValueError, "as_of_date.*strictly increasing"):
+            run_walk_forward(
+                _frame(),
+                [FOLD, later],
+                PDConfig(("x",), (), 7),
+                numeric=["x", "original_cltv"],
+                categorical=[],
+                seed=7,
+                minimum_ead_rows=2,
+                minimum_lgd_rows=100,
+            )
+
+    def test_development_windows_must_expand_by_prefix(self) -> None:
+        later = {
+            **FOLD,
+            "name": "oot_2021",
+            "as_of_date": "2021-01-01",
+            "development_years": [2014, 2016],
+            "calibration_year": 2017,
+            "validation_year": 2018,
+            "test_year": 2021,
+        }
+        with self.assertRaisesRegex(ValueError, "development_years.*strict prefix"):
+            run_walk_forward(
+                _frame(),
+                [FOLD, later],
+                PDConfig(("x",), (), 7),
+                numeric=["x", "original_cltv"],
+                categorical=[],
+                seed=7,
+                minimum_ead_rows=2,
+                minimum_lgd_rows=100,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -228,6 +228,9 @@ def _expected_loss(
     complete = defaults.iloc[0:0]
     if required.issubset(defaults):
         cutoff = pd.to_datetime(defaults["source_cutoff_date"], errors="coerce")
+        realized_upb = pd.to_numeric(defaults["original_upb"], errors="coerce")
+        realized_ead = pd.to_numeric(defaults["ead_ratio"], errors="coerce")
+        realized_lgd = pd.to_numeric(defaults["lgd"], errors="coerce")
         eligible = (
             defaults["lgd_eligible"].fillna(False).astype(bool)
             if "lgd_eligible" in defaults
@@ -235,8 +238,12 @@ def _expected_loss(
         )
         complete = defaults.loc[
             eligible
-            & defaults["ead_ratio"].notna()
-            & defaults["lgd"].notna()
+            & np.isfinite(realized_upb)
+            & realized_upb.gt(0)
+            & np.isfinite(realized_ead)
+            & realized_ead.ge(0)
+            & np.isfinite(realized_lgd)
+            & realized_lgd.ge(0)
             & pd.to_datetime(defaults["ead_label_available_date"], errors="coerce").le(cutoff)
             & pd.to_datetime(defaults["lgd_label_available_date"], errors="coerce").le(cutoff)
         ]
@@ -264,12 +271,31 @@ def _expected_loss(
         return {
             "status": "unavailable",
             **availability,
-            "reason": "realized losses require complete mature default coverage and original balance",
+            "reason": "realized losses require complete mature, eligible and economically valid defaults",
+        }
+    portfolio_upb = pd.to_numeric(pd_test["original_upb"], errors="coerce").to_numpy()
+    if not np.isfinite(portfolio_upb).all() or (portfolio_upb < 0).any():
+        return {
+            "status": "unavailable",
+            **availability,
+            "reason": "portfolio original_upb must be numeric, finite and non-negative",
         }
     ead = np.clip(ead_fitted["selected_model"].predict(pd_test[features]), 0.0, 1.5)
     lgd = np.clip(lgd_fitted["selected_model"].predict(pd_test[features]), 0.0, 2.0)
-    predicted = float((pd_probability * pd_test["original_upb"].to_numpy() * ead * lgd).sum())
+    if not np.isfinite(ead).all() or not np.isfinite(lgd).all():
+        return {
+            "status": "unavailable",
+            **availability,
+            "reason": "predicted EAD and LGD must be finite",
+        }
+    predicted = float((pd_probability * portfolio_upb * ead * lgd).sum())
     realized = float((complete["original_upb"] * complete["ead_ratio"] * complete["lgd"]).sum())
+    if not np.isfinite([predicted, realized]).all():
+        return {
+            "status": "unavailable",
+            **availability,
+            "reason": "expected and realized loss totals must be finite",
+        }
     return {
         "status": "evaluated",
         **availability,
@@ -308,6 +334,18 @@ def run_walk_forward(
     test_years = [roles[3] for roles in validated]
     if len(names) != len(set(names)) or test_years != sorted(set(test_years)):
         raise ValueError("backtesting fold names and test years must be unique and ordered")
+    for previous, current in zip(validated, validated[1:]):
+        previous_development, *_, previous_as_of = previous
+        current_development, *_, current_as_of = current
+        if current_as_of <= previous_as_of:
+            raise ValueError("backtesting as_of_date must be strictly increasing across folds")
+        if (
+            len(current_development) <= len(previous_development)
+            or current_development[: len(previous_development)] != previous_development
+        ):
+            raise ValueError(
+                "backtesting development_years must contain the previous window as a strict prefix"
+            )
 
     results = []
     for fold, roles in zip(folds, validated, strict=True):
