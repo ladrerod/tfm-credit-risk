@@ -23,7 +23,7 @@ from .metrics import (
     risk_band_cutoffs,
     risk_bands,
 )
-from .pd_model import PRODUCT_FEATURES, fit_calibrated_model
+from .pd_model import PRODUCT_FEATURES, SigmoidCalibratedModel, fit_calibrated_model
 
 
 BUNDLE_VERSION = 2
@@ -190,7 +190,7 @@ def load_bundle(path: str | Path) -> dict[str, object]:
         raise ValueError("unsupported model bundle version")
     if bundle["model_version"] != MODEL_VERSION or bundle["family"] != "logistic":
         raise ValueError("model bundle model identity is incompatible")
-    if not callable(getattr(bundle["model"], "predict_proba", None)):
+    if type(bundle["model"]) is not SigmoidCalibratedModel:
         raise ValueError("model bundle model is incompatible")
     if bundle["features"] != list(PRODUCT_FEATURES):
         raise ValueError("model bundle feature order does not match the product")
@@ -239,7 +239,9 @@ def load_bundle(path: str | Path) -> dict[str, object]:
         if not _valid_distribution(distributions[feature], max(1, len(values) - 1) + 1):
             raise ValueError("model bundle feature PSI references are incompatible")
     score_bins = bundle["score_bins"]
-    if not isinstance(score_bins, list) or not score_bins or not all(type(value) in (int, float) and math.isfinite(value) for value in score_bins):
+    if not isinstance(score_bins, list) or not score_bins or not all(
+        type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 1 for value in score_bins
+    ):
         raise ValueError("model bundle score PSI references are incompatible")
     if len(score_bins) > 1 and any(left >= right for left, right in zip(score_bins, score_bins[1:])):
         raise ValueError("model bundle score PSI references are incompatible")
@@ -253,10 +255,19 @@ def load_bundle(path: str | Path) -> dict[str, object]:
         or type(metrics["events"]) is not int
         or metrics["n"] < 1
         or not 0 <= metrics["events"] <= metrics["n"]
+        or type(metrics["prevalence"]) not in (int, float)
+        or not math.isclose(metrics["prevalence"], metrics["events"] / metrics["n"])
+        or not 0 <= metrics["prevalence"] <= 1
         or any(
-            value is not None and (type(value) not in (int, float) or not math.isfinite(value))
-            for name, value in metrics.items()
-            if name not in {"n", "events"}
+            type(metrics[name]) not in (int, float) or not math.isfinite(metrics[name]) or not 0 <= metrics[name] <= 1
+            for name in ("roc_auc", "pr_auc", "ks", "brier")
+        )
+        or type(metrics["log_loss"]) not in (int, float)
+        or not math.isfinite(metrics["log_loss"])
+        or metrics["log_loss"] < 0
+        or any(
+            type(metrics[name]) not in (int, float) or not math.isfinite(metrics[name])
+            for name in ("calibration_intercept", "calibration_slope")
         )
     ):
         raise ValueError("model bundle calibration_metrics are incompatible")
@@ -292,11 +303,14 @@ def _period_result(frame: pd.DataFrame, probability: np.ndarray, bundle: Mapping
 
 
 def evaluate_product(data_path: str | Path, bundle_path: str | Path, years: tuple[int, ...]) -> dict[str, object]:
-    if years == (HOLDOUT_YEAR,):
-        allowed = True
-    else:
-        allowed = bool(years) and all(type(year) is int and year in PRE_HOLDOUT_YEARS for year in years)
-    if not allowed:
+    if (
+        not isinstance(years, tuple)
+        or not years
+        or any(type(year) is not int for year in years)
+        or len(set(years)) != len(years)
+        or years != tuple(sorted(years))
+        or (years != (HOLDOUT_YEAR,) and not all(type(year) is int and year in PRE_HOLDOUT_YEARS for year in years))
+    ):
         raise ValueError("years must be 2018--2022 or exactly (2023,)")
     bundle = load_bundle(bundle_path)
     frame, observed = load_compact(data_path, EXPECTED_DATA_SHA256, years=years)
@@ -308,6 +322,8 @@ def evaluate_product(data_path: str | Path, bundle_path: str | Path, years: tupl
         mask = frame["cohort_year"] == year
         annual.append(_period_result(frame.loc[mask], probability[mask], bundle, {"cohort_year": year}))
     if years == (HOLDOUT_YEAR,):
+        if set(frame["cohort_quarter"]) != {1, 2, 3, 4}:
+            raise ValueError("2023 evaluation requires exactly four quarters")
         quarters = []
         for quarter in range(1, 5):
             mask = frame["cohort_quarter"] == quarter

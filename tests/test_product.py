@@ -12,7 +12,9 @@ import numpy as np
 import pandas as pd
 import zstandard as zstd
 
+import src.product as product
 from src.data_access import load_compact
+from src.pd_model import SigmoidCalibratedModel
 from src.product import (
     BUNDLE_VERSION,
     FIT_LABEL_CUTOFF,
@@ -32,15 +34,18 @@ class ProductTests(unittest.TestCase):
     def _sha256(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
-    def _prepared_file(self, directory: Path) -> Path:
+    def _prepared_file(self, directory: Path, *, missing_2023_quarter: int | None = None) -> Path:
         rows: list[dict[str, float | int | str]] = []
         for year in range(2010, 2024):
             for index in range(24):
                 poison = 2018 <= year <= 2022
+                quarter = index % 4 + 1
+                if year == 2023 and quarter == missing_2023_quarter:
+                    continue
                 rows.append(
                     {
                         "cohort_year": year,
-                        "cohort_quarter": index % 4 + 1,
+                        "cohort_quarter": quarter,
                         "origination_fico": -999_999 if poison else 620 + index * 5,
                         "original_dti": -999_999 if poison else 15 + index % 25,
                         "original_cltv": -999_999 if poison else 60 + index % 70,
@@ -119,6 +124,19 @@ class ProductTests(unittest.TestCase):
         self.assertEqual([float(value) for value in np.quantile(probability, [0.5, 0.9])], bundle["risk_band_cutoffs"])
         self.assertEqual(digest, bundle["data_sha256"])
         self.assertEqual(_implementation_sha256(), bundle["implementation_sha256"])
+        self.assertEqual(
+            (
+                "src/api.py", "src/data_access.py", "src/integrity.py", "src/metrics.py",
+                "src/pd_model.py", "src/product.py", "scripts/train_model.py", "scripts/serve_model.py",
+            ),
+            product._IMPLEMENTATION_FILES,
+        )
+        with patch("src.product.Path.read_bytes", return_value=b"line one\r\nline two\r\n") as read_bytes:
+            crlf = _implementation_sha256()
+        with patch("src.product.Path.read_bytes", return_value=b"line one\nline two\n"):
+            lf = _implementation_sha256()
+        self.assertEqual(crlf, lf)
+        self.assertEqual(8, read_bytes.call_count)
 
     def test_load_bundle_rejects_missing_stale_or_incompatible_content(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -126,12 +144,19 @@ class ProductTests(unittest.TestCase):
             source = self._prepared_file(root)
             bundle = self._train(source)
             output = root / "pd24-model.joblib"
+            self.assertIsInstance(bundle["model"], SigmoidCalibratedModel)
             for change, message in (
                 (lambda item: item.pop("model"), "missing keys"),
                 (lambda item: item.__setitem__("bundle_version", BUNDLE_VERSION + 1), "version"),
+                (lambda item: item.__setitem__("model", item["model"].estimator), "model"),
                 (lambda item: item.__setitem__("features", list(reversed(PRODUCT_FEATURES))), "feature order"),
                 (lambda item: item.__setitem__("risk_band_cutoffs", [0.9, 0.1]), "risk_band_cutoffs"),
                 (lambda item: item.__setitem__("calibration_metrics", {"n": "bad"}), "calibration_metrics"),
+                (lambda item: item["calibration_metrics"].__setitem__("prevalence", -1.0), "calibration_metrics"),
+                (lambda item: item["calibration_metrics"].__setitem__("roc_auc", 1.1), "calibration_metrics"),
+                (lambda item: item["calibration_metrics"].__setitem__("brier", None), "calibration_metrics"),
+                (lambda item: item["score_bins"].__setitem__(0, -0.1), "score PSI"),
+                (lambda item: item["score_bins"].__setitem__(-1, 1.1), "score PSI"),
                 (lambda item: item.__setitem__("data_sha256", "0" * 64), "data_sha256"),
                 (lambda item: item.__setitem__("implementation_sha256", "0" * 64), "implementation_sha256"),
             ):
@@ -140,6 +165,13 @@ class ProductTests(unittest.TestCase):
                 joblib.dump(invalid, output)
                 with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
                     self._load(output, source)
+            save_bundle(bundle, output)
+            with patch("src.product.joblib.dump", side_effect=OSError("disk full")):
+                with self.assertRaisesRegex(OSError, "disk full"):
+                    save_bundle(bundle, output)
+            self.assertTrue(output.exists())
+            self.assertFalse(output.with_suffix(".joblib.partial").exists())
+            self.assertEqual(bundle["data_sha256"], self._load(output, source)["data_sha256"])
 
     def test_evaluate_product_rejects_mixing_2023_with_other_years(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -151,6 +183,15 @@ class ProductTests(unittest.TestCase):
                 result = evaluate_product(source, output, (2023,))
                 with self.assertRaisesRegex(ValueError, "2023"):
                     evaluate_product(source, output, (2022, 2023))
+                with self.assertRaisesRegex(ValueError, "years"):
+                    evaluate_product(source, output, (2018, 2018))
+                incomplete = self._prepared_file(root, missing_2023_quarter=4)
+                with patch("src.product.EXPECTED_DATA_SHA256", self._sha256(incomplete)):
+                    incomplete_bundle = train_product(incomplete)
+                    incomplete_output = root / "incomplete-pd24-model.joblib"
+                    save_bundle(incomplete_bundle, incomplete_output)
+                    with self.assertRaisesRegex(ValueError, "quarters"):
+                        evaluate_product(incomplete, incomplete_output, (2023,))
 
         self.assertEqual([2023], result["years"])
         self.assertEqual(2023, result["annual"]["cohort_year"])
