@@ -1,75 +1,116 @@
 from __future__ import annotations
 
+import csv
+import hashlib
 import io
-import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import zstandard as zstd
 
-PRIVATE_COLUMNS = {
-    "loan_identifier",
-    "loan_sequence_number",
-    "borrower_identifier",
-    "borrower_name",
-    "seller_name",
-    "servicer_name",
-}
+COMPACT_COLUMNS = (
+    "cohort_year",
+    "cohort_quarter",
+    "origination_fico",
+    "original_dti",
+    "original_cltv",
+    "original_interest_rate",
+    "number_of_borrowers",
+    "pd_label_available_date",
+    "default_24m",
+)
+SOURCE_CUTOFF = pd.Timestamp("2026-03-01")
 
 
-def read_csv_zst(
-    path: str | Path,
-    *,
-    chunksize: int,
-) -> Iterator[pd.DataFrame]:
-    if chunksize <= 0:
+def read_csv_zst(path: str | Path, *, chunksize: int) -> Iterator[pd.DataFrame]:
+    if not isinstance(chunksize, int) or isinstance(chunksize, bool) or chunksize <= 0:
         raise ValueError("chunksize must be positive")
     with Path(path).open("rb") as compressed:
         with zstd.ZstdDecompressor().stream_reader(compressed) as reader:
             with io.TextIOWrapper(reader, encoding="utf-8", newline="") as text:
-                rows = pd.read_csv(text, chunksize=chunksize)
-                for frame in rows:
-                    if any(
-                        re.sub(r"\W+", "_", str(column).strip().casefold()).strip("_") in PRIVATE_COLUMNS
-                        for column in frame.columns
-                    ):
-                        raise ValueError("prepared file contains private columns")
+                header = next(csv.reader([text.readline()]), [])
+                if tuple(header) != COMPACT_COLUMNS:
+                    raise ValueError("compact CSV header must match exactly")
+                for frame in pd.read_csv(
+                    text,
+                    header=None,
+                    names=COMPACT_COLUMNS,
+                    chunksize=chunksize,
+                    dtype={"default_24m": "string"},
+                ):
                     yield frame
 
 
-def write_csv_zst_parts(
-    frames: Iterable[pd.DataFrame], path: str | Path, *, level: int = 19
-) -> None:
-    if level <= 0:
-        raise ValueError("compression level must be positive")
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_suffix(target.suffix + ".tmp")
-    try:
-        with temporary.open("wb") as raw:
-            with zstd.ZstdCompressor(level=level).stream_writer(raw) as compressed:
-                with io.TextIOWrapper(compressed, encoding="utf-8", newline="") as text:
-                    columns: list[str] | None = None
-                    wrote_rows = False
-                    for frame in frames:
-                        if frame.empty:
-                            continue
-                        normalized = [
-                            re.sub(r"\W+", "_", str(column).strip().casefold()).strip("_")
-                            for column in frame.columns
-                        ]
-                        if any(column in PRIVATE_COLUMNS for column in normalized):
-                            raise ValueError("prepared file contains private columns")
-                        if columns is None:
-                            columns = list(frame.columns)
-                        elif list(frame.columns) != columns:
-                            raise ValueError("all compressed CSV parts must have the same schema")
-                        frame.to_csv(text, index=False, header=not wrote_rows)
-                        wrote_rows = True
-                    if not wrote_rows:
-                        raise ValueError("compressed CSV requires at least one row")
-        temporary.replace(target)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
+def load_compact(
+    path: str | Path,
+    expected_sha256: str,
+    *,
+    years: tuple[int, ...],
+    chunksize: int = 100_000,
+) -> tuple[pd.DataFrame, str]:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as compressed:
+        for block in iter(lambda: compressed.read(1_048_576), b""):
+            digest.update(block)
+    observed = digest.hexdigest()
+    if observed != expected_sha256:
+        raise ValueError("compact sha256 does not match expected value")
+    if not years or any(type(year) is not int or not 2004 <= year <= 2023 for year in years):
+        raise ValueError("requested years must be within 2004--2023")
+
+    selected: list[pd.DataFrame] = []
+    rows_per_quarter: dict[tuple[int, int], int] = {}
+    requested = set(years)
+    for chunk in read_csv_zst(path, chunksize=chunksize):
+        cohort_year = pd.to_numeric(chunk["cohort_year"], errors="raise")
+        if (
+            cohort_year.isna().any()
+            or not np.isfinite(cohort_year).all()
+            or not (cohort_year % 1 == 0).all()
+            or not cohort_year.between(2004, 2023).all()
+        ):
+            raise ValueError("cohort_year is invalid")
+        frame = chunk.loc[cohort_year.isin(requested)].copy()
+        if frame.empty:
+            continue
+        frame["cohort_year"] = cohort_year.loc[frame.index].astype(int)
+        quarter = pd.to_numeric(frame["cohort_quarter"], errors="raise")
+        if (
+            quarter.isna().any()
+            or not np.isfinite(quarter).all()
+            or not (quarter % 1 == 0).all()
+            or not quarter.between(1, 4).all()
+        ):
+            raise ValueError("cohort_quarter is invalid")
+        frame["cohort_quarter"] = quarter.astype(int)
+        for cohort, count in frame.groupby(["cohort_year", "cohort_quarter"], sort=False).size().items():
+            rows_per_quarter[cohort] = rows_per_quarter.get(cohort, 0) + int(count)
+            if rows_per_quarter[cohort] > 12_500:
+                raise ValueError("compact exceeds the quarterly row cap")
+
+        target = pd.to_numeric(frame["default_24m"], errors="raise")
+        if target.isna().any() or not np.isfinite(target).all() or not target.isin([0, 1]).all():
+            raise ValueError("default_24m must be binary")
+        frame["default_24m"] = target.astype(int)
+        available = pd.to_datetime(frame["pd_label_available_date"], errors="raise")
+        if available.isna().any() or (available > SOURCE_CUTOFF).any():
+            raise ValueError("default_24m is not mature")
+        frame["pd_label_available_date"] = available
+        for column, minimum, maximum in (
+            ("origination_fico", 300, 850),
+            ("original_dti", 0, 65),
+            ("original_cltv", 0, 200),
+            ("original_interest_rate", 0, 1000),
+            ("number_of_borrowers", 1, 1000),
+        ):
+            values = pd.to_numeric(frame[column], errors="raise")
+            present = values.notna()
+            if not np.isfinite(values[present]).all() or not values[present].between(minimum, maximum).all():
+                raise ValueError(f"{column} is outside its permitted range")
+            frame[column] = values
+        selected.append(frame)
+    if not selected:
+        raise ValueError("compact contains no requested rows")
+    return pd.concat(selected, ignore_index=True), observed
