@@ -11,6 +11,10 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from .product import load_bundle
 
 
+PUBLIC_MODEL_VERSION = "pd24-v1"
+ACADEMIC_WARNING = "Academic risk estimate; not a credit decision."
+
+
 def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result = {}
     for key, value in pairs:
@@ -37,11 +41,8 @@ def create_app(bundle_path: str | Path) -> Flask:
     def health():
         return jsonify(
             status="ok",
-            model_version=bundle["model_version"],
-            model_name=bundle["selected_model_name"],
-            target=bundle["target"],
+            model_version=PUBLIC_MODEL_VERSION,
             horizon_months=bundle["horizon_months"],
-            source=bundle["data_source"],
         )
 
     @app.post("/predict")
@@ -67,14 +68,15 @@ def create_app(bundle_path: str | Path) -> Flask:
             score = float(bundle["model"].predict_proba(pd.DataFrame([payload], columns=features))[0, 1])
         except Exception:
             return internal_error()
-        if not math.isfinite(score):
+        if not math.isfinite(score) or not 0 <= score <= 1:
             return internal_error()
+        p50, p90 = bundle["risk_band_cutoffs"]
         return jsonify(
             risk_score=score,
-            risk_level="elevated" if score >= bundle["validation_threshold"] else "standard",
-            model_version=bundle["model_version"],
+            risk_band="low" if score < p50 else "medium" if score < p90 else "high",
+            model_version=PUBLIC_MODEL_VERSION,
             horizon_months=bundle["horizon_months"],
-            warning="Experimental academic risk score; not a credit decision.",
+            warning=ACADEMIC_WARNING,
         )
 
     return app
