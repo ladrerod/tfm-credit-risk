@@ -157,6 +157,9 @@ class ProductTests(unittest.TestCase):
                 (lambda item: item["calibration_metrics"].__setitem__("brier", None), "calibration_metrics"),
                 (lambda item: item["score_bins"].__setitem__(0, -0.1), "score PSI"),
                 (lambda item: item["score_bins"].__setitem__(-1, 1.1), "score PSI"),
+                (lambda item: item.__setitem__("score_distribution", [1.0]), "score PSI"),
+                (lambda item: item.__setitem__("score_distribution", [0.0] * len(item["score_distribution"])), "score PSI"),
+                (lambda item: item.__setitem__("score_distribution", [-0.1, 1.1] + [0.0] * (len(item["score_distribution"]) - 2)), "score PSI"),
                 (lambda item: item.__setitem__("data_sha256", "0" * 64), "data_sha256"),
                 (lambda item: item.__setitem__("implementation_sha256", "0" * 64), "implementation_sha256"),
             ):
@@ -166,10 +169,17 @@ class ProductTests(unittest.TestCase):
                 with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
                     self._load(output, source)
             save_bundle(bundle, output)
-            with patch("src.product.joblib.dump", side_effect=OSError("disk full")):
+            previous = output.read_bytes()
+
+            def fail_dump(_: object, temporary: Path) -> None:
+                temporary.write_bytes(b"partial")
+                raise OSError("disk full")
+
+            with patch("src.product.joblib.dump", side_effect=fail_dump):
                 with self.assertRaisesRegex(OSError, "disk full"):
                     save_bundle(bundle, output)
             self.assertTrue(output.exists())
+            self.assertEqual(previous, output.read_bytes())
             self.assertFalse(output.with_suffix(".joblib.partial").exists())
             self.assertEqual(bundle["data_sha256"], self._load(output, source)["data_sha256"])
 
@@ -185,6 +195,9 @@ class ProductTests(unittest.TestCase):
                     evaluate_product(source, output, (2022, 2023))
                 with self.assertRaisesRegex(ValueError, "years"):
                     evaluate_product(source, output, (2018, 2018))
+                for invalid_years in ([2018], (2019, 2018), (2017,)):
+                    with self.subTest(years=invalid_years), self.assertRaisesRegex(ValueError, "years"):
+                        evaluate_product(source, output, invalid_years)  # type: ignore[arg-type]
                 incomplete = self._prepared_file(root, missing_2023_quarter=4)
                 with patch("src.product.EXPECTED_DATA_SHA256", self._sha256(incomplete)):
                     incomplete_bundle = train_product(incomplete)
