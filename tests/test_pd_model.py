@@ -5,54 +5,37 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from src.pd_model import PDConfig, train_and_select
+import src.pd_model as pd_model
+from src.pd_model import PRODUCT_FEATURES, fit_calibrated_model
 
 
 class PDModelTests(unittest.TestCase):
-    def _sample(self, seed: int, rows: int, year: int) -> pd.DataFrame:
+    @staticmethod
+    def _sample(seed: int, rows: int) -> pd.DataFrame:
         rng = np.random.default_rng(seed)
-        score = rng.normal(710, 45, rows)
-        cltv = rng.uniform(45, 105, rows)
-        occupancy = rng.choice(["principal", "investor"], rows, p=[0.8, 0.2])
-        logit = -3.2 - 0.018 * (score - 700) + 0.035 * (cltv - 80) + 0.7 * (occupancy == "investor")
-        target = rng.binomial(1, 1 / (1 + np.exp(-logit)))
-        return pd.DataFrame(
+        frame = pd.DataFrame(
             {
-                "credit_score": score,
-                "cltv": cltv,
-                "occupancy": occupancy,
-                "cohort_year": year,
-                "default_24m": target,
+                "origination_fico": rng.integers(620, 800, rows),
+                "original_dti": rng.integers(10, 45, rows),
+                "original_cltv": rng.integers(50, 110, rows),
+                "original_interest_rate": rng.uniform(2, 8, rows),
+                "number_of_borrowers": rng.integers(1, 3, rows),
             }
         )
+        frame["default_24m"] = np.tile([0, 1], rows // 2 + 1)[:rows]
+        frame["not_a_product_input"] = rng.normal(size=rows)
+        return frame
 
-    def test_trains_calibrates_and_selects_without_test_input(self) -> None:
-        config = PDConfig(
-            numeric_features=("credit_score", "cltv"),
-            categorical_features=("occupancy",),
-            seed=42,
-        )
-        result = train_and_select(
-            self._sample(1, 500, 2018),
-            self._sample(2, 250, 2019),
-            self._sample(3, 250, 2020),
-            config,
-        )
-        self.assertIn(result["selected_name"], {"logistic", "hist_gradient_boosting"})
-        self.assertEqual({"logistic", "hist_gradient_boosting"}, set(result["metrics"]))
-        self.assertEqual(10, len(result["calibration_table"]))
-        probability = result["selected_model"].predict_proba(self._sample(4, 10, 2021))[:, 1]
+    def test_fit_calibrated_model_uses_only_the_frozen_five_features(self) -> None:
+        development = self._sample(1, 80)
+        calibration = self._sample(2, 40)
+
+        fitted = fit_calibrated_model(development, calibration)
+        probability = fitted.predict_proba(calibration[list(PRODUCT_FEATURES)])[:, 1]
+
         self.assertTrue(np.isfinite(probability).all())
         self.assertTrue(((probability >= 0) & (probability <= 1)).all())
-
-    def test_rejects_outcome_leakage_features(self) -> None:
-        config = PDConfig(
-            numeric_features=("credit_score", "current_delinquency_status"),
-            categorical_features=(),
-            seed=42,
-        )
-        with self.assertRaisesRegex(ValueError, "leakage"):
-            config.validate()
+        self.assertFalse(hasattr(pd_model, "train_and_select"))
 
 
 if __name__ == "__main__":

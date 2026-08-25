@@ -15,9 +15,10 @@ def main() -> None:
     print(
         {
             "model_version": bundle["model_version"],
-            "selected_model_name": bundle["selected_model_name"],
+            "family": bundle["family"],
             "data_sha256": bundle["data_sha256"],
-            "validation_metrics": bundle["validation_metrics"],
+            "implementation_sha256": bundle["implementation_sha256"],
+            "risk_band_cutoffs": bundle["risk_band_cutoffs"],
         }
     )
 
