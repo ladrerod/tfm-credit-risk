@@ -55,7 +55,7 @@ class DataAccessTests(unittest.TestCase):
         self.assertEqual(SOURCE_CUTOFF, pd.Timestamp("2026-03-01"))
 
     def test_load_compact_rejects_incorrect_hash_before_reading(self) -> None:
-        path = self.write_compact(valid_frame())
+        path = self.write_compact(valid_frame().assign(default_24m=[0, 2, 0, 1]))
 
         with self.assertRaisesRegex(ValueError, "sha256"):
             load_compact(path, "0" * 64, years=(2010,), chunksize=2)

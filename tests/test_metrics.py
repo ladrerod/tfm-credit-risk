@@ -65,14 +65,32 @@ class MetricTests(unittest.TestCase):
 
     def test_year_metrics_macro_summary_ignores_undefined_years(self) -> None:
         summary = summarize_year_metrics([
-            {"cohort_year": 2018, "roc_auc": 0.7, "brier": 0.2},
-            {"cohort_year": 2019, "roc_auc": None, "brier": None},
-            {"cohort_year": 2020, "roc_auc": 0.9, "brier": None},
+            {
+                "cohort_year": 2018,
+                "roc_auc": 0.9,
+                "pr_auc": 0.8,
+                "ks": 0.7,
+                "brier": 0.1,
+                "log_loss": 0.2,
+                "calibration_intercept": -0.4,
+                "calibration_slope": 0.9,
+            },
+            {
+                "cohort_year": 2019,
+                "roc_auc": 0.8,
+                "pr_auc": 0.7,
+                "ks": 0.6,
+                "brier": 0.3,
+                "log_loss": 0.4,
+                "calibration_intercept": 0.8,
+                "calibration_slope": 1.3,
+            },
+            {"cohort_year": 2020, "roc_auc": None, "brier": None},
         ])
 
-        self.assertEqual(0.8, summary["roc_auc"]["macro_mean"])
-        self.assertEqual(2018, summary["roc_auc"]["worst_year"])
-        self.assertIsNone(summary["brier"]["macro_mean"])
+        self.assertAlmostEqual(0.85, summary["roc_auc"]["macro_mean"])
+        for metric in ("roc_auc", "pr_auc", "ks", "brier", "log_loss", "calibration_intercept", "calibration_slope"):
+            self.assertEqual(2019, summary[metric]["worst_year"])
 
     def test_material_winner_preserves_the_frozen_paired_rule(self) -> None:
         baseline = [{"roc_auc": 0.70, "brier": 0.20, "log_loss": 0.30}] * 3

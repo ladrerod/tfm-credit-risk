@@ -154,7 +154,14 @@ def summarize_year_metrics(rows: list[dict[str, object]]) -> dict[str, object]:
             summary[metric] = {"macro_mean": None, "median": None, "iqr": None, "worst_year": None}
             continue
         years, scores = zip(*values, strict=True)
-        worst = int(np.argmax(scores) if metric in {"brier", "log_loss"} else np.argmin(scores))
+        if metric in {"brier", "log_loss"}:
+            worst = int(np.argmax(scores))
+        elif metric == "calibration_intercept":
+            worst = int(np.argmax(np.abs(scores)))
+        elif metric == "calibration_slope":
+            worst = int(np.argmax(np.abs(np.asarray(scores) - 1)))
+        else:
+            worst = int(np.argmin(scores))
         summary[metric] = {
             "macro_mean": float(np.mean(scores)),
             "median": float(np.median(scores)),

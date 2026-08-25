@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import io
 from collections.abc import Iterator
 from pathlib import Path
@@ -9,6 +8,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import zstandard as zstd
+
+from .integrity import file_sha256
 
 COMPACT_COLUMNS = (
     "cohort_year",
@@ -50,11 +51,7 @@ def load_compact(
     years: tuple[int, ...],
     chunksize: int = 100_000,
 ) -> tuple[pd.DataFrame, str]:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as compressed:
-        for block in iter(lambda: compressed.read(1_048_576), b""):
-            digest.update(block)
-    observed = digest.hexdigest()
+    observed = file_sha256(path)
     if observed != expected_sha256:
         raise ValueError("compact sha256 does not match expected value")
     if not years or any(type(year) is not int or not 2004 <= year <= 2023 for year in years):
