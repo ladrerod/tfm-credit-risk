@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest.mock import patch
 import joblib
 import numpy as np
 import pandas as pd
+from werkzeug.test import EnvironBuilder, run_wsgi_app
 
 from src.pd_model import PRODUCT_FEATURES, fit_calibrated_model
 from src.product import (
@@ -155,6 +157,14 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual(400, response.status_code)
                 self.assertEqual({"error": "invalid request"}, response.get_json())
 
+    def test_predict_rejects_json_suffix_content_types(self) -> None:
+        response = self._client().post(
+            "/predict", data=json.dumps(self.payload), content_type="application/problem+json"
+        )
+
+        self.assertEqual(400, response.status_code)
+        self.assertEqual({"error": "invalid request"}, response.get_json())
+
     def test_predict_rejects_duplicate_oversized_and_deep_json(self) -> None:
         client = self._client()
         requests = [
@@ -178,6 +188,20 @@ class ApiTests(unittest.TestCase):
             response = client.post("/predict", data=nested, content_type="application/json")
         self.assertEqual(400, response.status_code)
         self.assertEqual({"error": "invalid request"}, response.get_json())
+
+    def test_predict_limits_an_unbounded_wsgi_body_to_4096_bytes(self) -> None:
+        stream = CountingInput(b" " * 4097)
+        builder = EnvironBuilder(
+            path="/predict", method="POST", input_stream=stream, content_type="application/json"
+        )
+        environ = builder.get_environ()
+        environ.pop("CONTENT_LENGTH", None)
+        environ["wsgi.input_terminated"] = True
+        response, status, _ = run_wsgi_app(self._client().application, environ, buffered=True)
+
+        self.assertEqual("400 BAD REQUEST", status)
+        self.assertEqual(b'{"error":"invalid request"}\n', b"".join(response))
+        self.assertLessEqual(stream.consumed, 4096)
 
     def test_predict_hides_model_failures_and_invalid_probabilities(self) -> None:
         for result in (RuntimeError("model failure"), float("nan"), 1.1):
@@ -205,6 +229,22 @@ class ProbabilityModel:
         if isinstance(self.result, Exception):
             raise self.result
         return np.array([[1 - self.result, self.result]])
+
+
+class CountingInput(io.BytesIO):
+    def __init__(self, body: bytes) -> None:
+        super().__init__(body)
+        self.consumed = 0
+
+    def read(self, size: int = -1) -> bytes:
+        result = super().read(size)
+        self.consumed += len(result)
+        return result
+
+    def readinto(self, buffer: bytearray) -> int:
+        size = super().readinto(buffer)
+        self.consumed += size
+        return size
 
 
 if __name__ == "__main__":

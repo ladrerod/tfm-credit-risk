@@ -47,7 +47,7 @@ def create_app(bundle_path: str | Path) -> Flask:
 
     @app.post("/predict")
     def predict():
-        if not request.is_json:
+        if request.mimetype != "application/json":
             return invalid_request()
         try:
             payload = json.loads(request.get_data(cache=False), object_pairs_hook=_unique_json_object)
