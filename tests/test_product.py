@@ -136,6 +136,7 @@ class ProductTests(unittest.TestCase):
             (
                 "src/api.py", "src/data_access.py", "src/integrity.py", "src/metrics.py",
                 "src/pd_model.py", "src/product.py", "scripts/train_model.py", "scripts/serve_model.py",
+                "scripts/serve_demo.py",
             ),
             product._IMPLEMENTATION_FILES,
         )
@@ -144,7 +145,7 @@ class ProductTests(unittest.TestCase):
         with patch("src.product.Path.read_bytes", return_value=b"line one\nline two\n"):
             lf = _implementation_sha256()
         self.assertEqual(crlf, lf)
-        self.assertEqual(8, read_bytes.call_count)
+        self.assertEqual(9, read_bytes.call_count)
 
     def test_load_bundle_rejects_missing_stale_or_incompatible_content(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

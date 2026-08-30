@@ -140,6 +140,7 @@ class ApiTests(unittest.TestCase):
             {"data": json.dumps(self.payload), "content_type": "text/plain"},
             {"data": "{", "content_type": "application/json"},
             {"json": []},
+            {"json": [{}]},
             {"json": {"origination_fico": 700}},
             {"json": {**self.payload, "unexpected": 1}},
             {"json": {**self.payload, "origination_fico": True}},

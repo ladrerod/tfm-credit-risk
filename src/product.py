@@ -47,6 +47,7 @@ _IMPLEMENTATION_FILES = (
     "src/product.py",
     "scripts/train_model.py",
     "scripts/serve_model.py",
+    "scripts/serve_demo.py",
 )
 REQUIRED_BUNDLE_KEYS = {
     "bundle_version",
@@ -280,6 +281,25 @@ def load_bundle(path: str | Path) -> dict[str, object]:
     if bundle["implementation_sha256"] != _implementation_sha256():
         raise ValueError("model bundle implementation_sha256 is stale")
     return bundle
+
+
+def score_product(bundle: Mapping[str, object], payload: Mapping[str, object]) -> tuple[float, str]:
+    features = bundle["features"]
+    if not isinstance(features, list) or not isinstance(payload, Mapping) or set(payload) != set(features):
+        raise ValueError("invalid input")
+    schema = bundle["input_schema"]
+    for name in features:
+        value = payload[name]
+        if type(value) not in (int, float) or (type(value) is float and not math.isfinite(value)):
+            raise ValueError("invalid input")
+        limits = schema[name]
+        if value < limits["minimum"] or value > limits["maximum"]:
+            raise ValueError("invalid input")
+    score = float(bundle["model"].predict_proba(pd.DataFrame([payload], columns=features))[0, 1])
+    if not math.isfinite(score) or not 0 <= score <= 1:
+        raise RuntimeError("model returned an invalid probability")
+    p50, p90 = bundle["risk_band_cutoffs"]
+    return score, "low" if score < p50 else "medium" if score < p90 else "high"
 
 
 def _period_result(frame: pd.DataFrame, probability: np.ndarray, bundle: Mapping[str, object], keys: dict[str, int]) -> dict[str, object]:
