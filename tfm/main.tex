@@ -5,6 +5,7 @@
 \usepackage[spanish]{babel}
 \usepackage[a4paper,margin=25mm]{geometry}
 \usepackage{microtype}
+\usepackage{graphicx}
 \usepackage{hyperref}
 
 \title{PD24: producto predictivo de probabilidad de impago a 24 meses}
@@ -13,42 +14,233 @@
 
 \begin{document}
 \maketitle
+
+\begin{abstract}
+PD24 prueba si un modelo simple de cinco entradas puede seleccionarse, validarse
+temporalmente y entregarse como producto local con evidencia de Freddie Mac. Se
+congela una regresión logística, un compacto local y una API JSON. El resultado
+es útil como prototipo predictivo académico y para ordenar riesgo relativo, pero
+el holdout de 2023 falla una guarda predeclarada de intercepto de calibración;
+por ello no acredita una probabilidad absoluta estable ni un motor de decisión.
+\end{abstract}
+
 \tableofcontents
 
 \section{De un estudio amplio a un producto predictivo concreto}
 
-El trabajo se acota a una probabilidad de impago a 24 meses calculada a partir de variables de originación. El producto final separa el compacto local, el entrenamiento y una API local de consulta. No es una herramienta de decisión crediticia.
+La pregunta de este TFM es si una señal de riesgo a 24 meses puede recorrer un
+camino completo y verificable desde cohortes de originación hasta un servicio
+local. El alcance se ha retirado de un estudio amplio: PD24 recibe cinco números,
+estima \texttt{default\_24m} y devuelve un score y una banda. No aprueba,
+deniega ni explica causalmente préstamos. La guía del TFM pide análisis,
+comparación, interpretación, reproducibilidad y una memoria orientada al uso
+profesional\footnote{\textit{01_Guía para el Trabajo Fin de Master - UCM - Online - Data Science, Big Data  Business Analytics.pdf}, pp.~1--3, 7 y 10--12.};
+el producto adopta ese marco sin convertirlo en un sistema de crédito.
+
+La evidencia sigue una secuencia deliberadamente estrecha: definición y tiempo,
+selección de variables, comparación de modelos, resultado congelado, bundle y
+API, y límites. La separación entre capacidad de ordenación y calibración es
+central: una AUC o unas bandas ordenadas no prueban que el número devuelto sea
+una probabilidad absoluta suficientemente estable.
 
 \section{Datos y definición del problema}
 
-El único fichero analítico es \texttt{freddie-pd24.csv.zst}. Según D-008, contiene cohorte, cinco entradas numéricas, fecha de disponibilidad de la etiqueta y el objetivo binario \texttt{default\_24m}; no conserva identificadores. D-006 documenta la preparación ciega y la madurez de las etiquetas antes de consolidar el compacto.
+La población son cohortes elegibles de originación Freddie Mac, muestreadas y
+definidas para este proyecto; no representan automáticamente todo el mercado.
+El objetivo binario \texttt{default\_24m} indica alcanzar 90 días de mora o una
+baja crediticia dentro de 24 meses desde el primer pago. La ventana exige
+madurez de etiqueta: desarrollo 2010--2015, calibración 2016--2017,
+preholdout 2018--2022, holdout sin tocar 2023 y deriva sin target 2024--2026.
+No hay identificadores en el compacto final, cuya estructura congelada contiene
+cohorte, las cinco entradas, fecha de disponibilidad y etiqueta.
+
+Las entradas son \texttt{origination\_fico}, \texttt{original\_dti},
+\texttt{original\_cltv}, \texttt{original\_interest\_rate} y
+\texttt{number\_of\_borrowers}. Son rasgos disponibles en originación; no
+prueban causas ni permiten explicar un préstamo individual. La limpieza, rangos,
+ausencias y relaciones entre variables se apoyan directamente en la preparación
+de datos enseñada\footnote{\textit{Slides_Data_Understanding_Preparation.pdf}, pp.~3--12.};
+la definición binaria, ventana de observación y maduración se apoyan en el
+material de scoring\footnote{\textit{Apuntes Scoring de Riesgos.pdf}, pp.~2, 5--16 y 19.}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/temporal_windows_maturity.png}
+\caption{Ventanas temporales y condición de madurez de PD24.}
+\end{figure}
+
+La figura se lee de izquierda a derecha: el año de cohorte no entra en una
+evaluación hasta que su etiqueta de 24 meses está disponible. Su limitación es
+que describe el diseño y sus agregados, no una garantía de estabilidad futura;
+el embargo explícito de madurez es una extensión técnica de este TFM, no un
+método nombrado expresamente por el temario.
 
 \section{Diseño experimental y validación temporal}
 
-La selección usa folds anuales 2015--2017 con seis años de desarrollo, dos de calibración y tres de embargo. El ajuste de referencia usa 2010--2015 para desarrollo y 2016--2017 para calibración. Los años posteriores permanecen fuera de ese ajuste; 2023 es el holdout final.
+La selección utiliza folds temporales 2015--2017 con seis años de desarrollo,
+dos de calibración y tres de embargo. El modelo congelado se ajusta con
+2010--2015 y se calibra separadamente con 2016--2017; los años posteriores no
+reabren ese ajuste. La regresión logística, ROC/AUC y selección sin
+sobreparametrizarse proceden de los materiales del máster\footnote{\textit{Slides_Regresión_logística.pdf}, pp.~3--17; \textit{Slides_Selección_de_variables.pdf}, pp.~5--10.}.
+
+Se reportan AUC y PR-AUC para discriminación, KS para separación, Brier y
+log-loss para calidad probabilística, e intercepto y pendiente para calibración.
+Brier, log-loss, intercepto/pendiente y PSI son extensiones técnicas aplicadas
+por el TFM; no se atribuyen como contenidos expresamente impartidos. PSI compara
+distribuciones de entradas o score contra la referencia y no mide rendimiento.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/fold_model_comparison.png}
+\caption{Comparación temporal de contratos y familias en los folds de selección.}
+\end{figure}
+
+La figura muestra que cinco variables no pierden materialmente frente a dieciocho
+y que el challenger no justifica sustituir el modelo simple. Es evidencia de una
+regla temporal concreta, no una afirmación universal sobre algoritmos: HGB,
+Brier, log-loss, calibración y el embargo son extensiones técnicas; árboles y
+clasificadores básicos sí están trazados al temario\footnote{\textit{2 Clasificadores Supervisados y Regresión.pdf}, pp.~43--58.}.
 
 \section{Cinco variables conservan la capacidad predictiva}
 
-El contrato de entrada queda limitado a \texttt{origination\_fico}, \texttt{original\_dti}, \texttt{original\_cltv}, \texttt{original\_interest\_rate} y \texttt{number\_of\_borrowers}. D-007 registra que el challenger de dieciocho variables no superó la regla pareada material, por lo que el contrato no se amplió.
+La puerta pareada exige dos folds con ganancia de AUC de 0,01 y mejora relativa
+de Brier o log-loss del 5\%, sin pérdida material en ningún fold. Frente a la
+logística de cinco variables, el challenger de dieciocho obtiene diferencias de
+AUC de -0,031352, +0,000793 y -0,013689 en 2015--2017; no logra ninguna
+victoria material. La regla preserva por tanto el contrato mínimo y evita que
+la interfaz crezca sin evidencia.
+
+La ablación agregada atribuye la mayor pérdida de AUC a retirar FICO (AUC macro
+0,747310 frente a 0,815065 con las cinco); retirar las otras entradas deja AUC
+macro entre 0,796718 y 0,807096. Esta lectura sólo mide asociación predictiva
+global bajo el diseño fijado. En la regresión logística, los signos
+estandarizados --FICO -0,774665, DTI 0,368087, CLTV 0,517045, tipo 0,470748 y
+prestatarios -0,498650-- tampoco son efectos causales ni explicaciones por
+préstamo.
 
 \section{Comparación y selección del modelo predictivo}
 
-D-007 compara una regresión logística y un challenger de árboles sobre las cinco variables. La regresión logística se congeló tras la comparación temporal: el challenger no satisfizo la regla material de sustitución. Las transformaciones, la semilla y la calibración quedan fijadas antes de la evaluación posterior.
+Sobre el mismo contrato, la logística obtiene AUC macro 0,815065, Brier
+0,005930 y log-loss 0,033673; HGB obtiene 0,800760, 0,005888 y 0,033005.
+Aunque HGB reduce Brier, pierde AUC en los tres folds y no satisface la regla
+material de sustitución. Se congela la logística balanceada con imputación
+mediana e indicadores, escalado y calibración sigmoide independiente, sin
+búsqueda posterior de hiperparámetros.
+
+La calibración 2016--2017 contiene 99.920 observaciones y 708 eventos: AUC
+0,798864, PR-AUC 0,032190, KS 0,447723, Brier 0,006965, log-loss 0,037717,
+intercepto -0,170426 y pendiente 0,963033. Los cortes P50/P90 de banda son
+0,003899719891 y 0,015918064398. Estas cifras fijan una referencia interna;
+no convierten el score en una probabilidad contractual.
 
 \section{Resultados del modelo seleccionado}
 
-Esta sección reserva los resultados de evaluación temporal y del holdout para la evidencia que se incorpore después de la congelación. No presenta cifras finales ni utiliza el holdout para modificar el producto.
+La evaluación preholdout conserva los años 2018--2022. La tabla define cada
+métrica sobre la cohorte anual; AUC, PR-AUC y KS miden separación, Brier y
+log-loss calidad probabilística, e intercepto/pendiente calibración.
+\begin{center}\scriptsize
+\begin{tabular}{c r r r r r r r}
+  año & AUC & PR-AUC & KS & Brier & log-loss & intercepto & pendiente\\
+  2018 & 0,757634 & 0,080001 & 0,397486 & 0,025633 & 0,119440 & 0,721014 & 0,952667\\
+  2019 & 0,709641 & 0,094060 & 0,313956 & 0,043208 & 0,213835 & 0,529196 & 0,714577\\
+  2020 & 0,772745 & 0,055788 & 0,420509 & 0,015306 & 0,085112 & 1,414921 & 0,956175\\
+  2021 & 0,776731 & 0,031785 & 0,434647 & 0,008522 & 0,048806 & 1,358302 & 1,048064\\
+  2022 & 0,741444 & 0,051156 & 0,364821 & 0,018113 & 0,086674 & -0,761978 & 0,756021\\
+  2023 & 0,773358 & 0,060227 & 0,400860 & 0,017217 & 0,085038 & -0,654081 & 1,054711\\
+\end{tabular}
+\end{center}
+Las tasas low/medium/high son, respectivamente, 2018
+0,005579/0,020958/0,070477; 2019 0,017234/0,053061/0,113052; 2020
+0,007798/0,035979/0,091282; 2021 0,004130/0,021650/0,063291; 2022
+0,003167/0,013030/0,038896; y 2023 0,001119/0,002952/0,025015. El PSI
+de score por año es 0,248221, 0,019631, 0,507522, 0,557749, 0,440076 y
+2,281915; el último se acompaña del PSI de entradas detallado más abajo. El
+orden de bandas sólo acredita ranking relativo.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/temporal_performance.png}
+\caption{Métricas anuales 2018--2023 del modelo congelado.}
+\end{figure}
+
+La figura permite leer el cambio por cohorte, no un promedio que lo oculte. En
+2023 (49.966 filas, 857 eventos), AUC es 0,773358, PR-AUC 0,060227, KS
+0,400860, Brier 0,017217 y log-loss 0,085038; las tasas observadas
+low/medium/high son 0,001119/0,002952/0,025015. PSI de FICO/DTI/CLTV/tipo/
+prestatarios/score es 0,029366/2,436114/0,096963/7,027979/0/2,281915.
+El slope 1,054711 pasa, pero el intercepto -0,6540807066 falla la guarda
+[-0,5, 0,5]. AUC, Brier, log-loss, slope y orden de bandas pasan; la regla
+all-guards concluye \textbf{no compatible}. No se recalibra ni se alteran
+bandas tras el holdout.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/calibration_bands_interpretability.png}
+\caption{Bandas, calibración e interpretación agregada del modelo congelado.}
+\end{figure}
+
+Esta figura sitúa las bandas junto a la calibración y los coeficientes para
+evitar confundir separación con exactitud absoluta. Es una lectura agregada de
+la población definida; las diferencias entre probabilidad media y tasa observada
+en 2023 explican el límite del intercepto, no una instrucción de ajuste.
+
+Para 2024--2026 sólo hay 112.500 originaciones sin target maduro. Su PSI total
+de score es 1,807470 (por año: 2,080983, 1,778831 y 1,105478). Son señales de
+deriva y calidad de inputs, no AUC, calibración ni rendimiento predictivo.
 
 \section{Arquitectura del producto final}
 
-El flujo es \texttt{freddie-pd24.csv.zst} hacia entrenamiento, bundle local y API. El bundle conserva el modelo, el esquema de cinco entradas, sus bandas de riesgo y hashes de datos e implementación. La API ofrece \texttt{GET /health} y \texttt{POST /predict}.
+El flujo mínimo es compacto local $\rightarrow$ entrenamiento $\rightarrow$
+bundle local $\rightarrow$ API Flask. El bundle congelado \texttt{pd24-v1}
+contiene contrato, modelo, calibrador, bandas y hashes: datos
+\texttt{33f69db7662dee9265bc28cb6d01b4099d6727641c1d6e4a579930df5149fb91},
+implementación \texttt{25afde87d50c0e82982c3c13b557384a2f676384bec21c6e2131420dc8f236aa}
+y bundle \texttt{a1ef460b883770bf39fe21b104ecfdb2522b2f916159ff2b24e1dcedad908d7b}.
+El producto sirve \texttt{GET /health} y \texttt{POST /predict} sólo en local.
+
+El modelo como servicio, REST, HTTP, JSON, rutas Flask y ejecución local son
+contenidos trazables al módulo de productivización\footnote{\textit{00_UCM_BigData_Productivizar_Modelos_v1.pdf}, pp.~40--42, 58--75 y 98--115.}.
+El uso de serialización, pruebas automatizadas y el diseño concreto de esta
+integridad son extensiones de implementación del TFM, no prácticas que se
+atribuyan explícitamente a ese módulo.
 
 \section{Demostración y validación del producto}
 
-La validación permanente cubre el lector, la separación temporal, el modelo, el bundle y el contrato de API. La solicitud de predicción exige exactamente las cinco entradas numéricas y devuelve un score, una banda relativa y una advertencia de uso académico.
+La API exige estrictamente los cinco números del contrato, finitos y dentro de
+los rangos congelados; cualquier campo faltante, adicional o valor no numérico
+se rechaza. Hay 30 pruebas permanentes sobre lector, separación temporal,
+modelo, bundle y contrato API. No se plantea nube, base de datos, autenticación,
+contenedores ni despliegue externo.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/product_api_contract.png}
+\caption{Flujo local y contrato de la demostración real de la API.}
+\end{figure}
+
+La lectura de la figura es literal: una petición de cinco números llega al
+bundle congelado y retorna un aviso académico, no una decisión. La demostración
+real fue:
+\begin{verbatim}
+{"number_of_borrowers":2,"original_interest_rate":4.5,"origination_fico":700,"original_dti":30,"original_cltv":80}
+{"horizon_months":24,"model_version":"pd24-v1","risk_band":"medium","risk_score":0.005874119344598262,"warning":"Academic risk estimate; not a credit decision."}
+\end{verbatim}
+El score equivale aproximadamente a 0,587\%, pero se conserva arriba la copia
+JSON exacta. Una respuesta correcta demuestra el contrato local; no resuelve el
+fallo de calibración observado en el holdout.
 
 \section{Conclusiones, límites y posibles mejoras}
 
-PD24 es un producto académico mínimo para estimar probabilidad de impago a 24 meses con una superficie de ejecución reducida. Cualquier ampliación requerirá nueva evidencia y validación independiente.
+PD24 responde afirmativamente a la pregunta de producto: un contrato de cinco
+variables puede seleccionarse temporalmente, congelarse, probarse y servirse
+localmente con evidencia trazable. Responde negativamente a una afirmación más
+fuerte: el intercepto anual de 2023 fuera de la guarda impide declarar
+calibración absoluta estable. Usos prohibidos: concesión o denegación de
+crédito, pricing, provisiones, regulación y cualquier decisión automática.
+
+El siguiente paso honesto antes de elevar la reclamación de probabilidad o
+despliegue es una recalibración y revalidación independientes, no un ajuste
+post-holdout. Para estimar pérdida esperada en un trabajo futuro harían falta
+EAD y LGD junto a PD, pero no son entradas faltantes de este producto de PD.
 
 \end{document}
