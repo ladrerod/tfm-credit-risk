@@ -1,8 +1,0 @@
-{
-  "analysis_file": "freddie-analysis.csv.zst",
-  "monthly_directory": "freddie-monthly",
-  "monthly_years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022],
-  "monthly_quarters": [1],
-  "monthly_sample_modulus": 100,
-  "chunk_rows": 100000
-}
