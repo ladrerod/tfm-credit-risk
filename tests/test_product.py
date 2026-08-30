@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,7 @@ from src.product import (
     BUNDLE_VERSION,
     FIT_LABEL_CUTOFF,
     PRODUCT_FEATURES,
+    PRE_HOLDOUT_YEARS,
     REFERENCE_CALIBRATION_YEARS,
     REFERENCE_DEVELOPMENT_YEARS,
     _implementation_sha256,
@@ -34,11 +36,17 @@ class ProductTests(unittest.TestCase):
     def _sha256(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
-    def _prepared_file(self, directory: Path, *, missing_2023_quarter: int | None = None) -> Path:
+    def _prepared_file(
+        self,
+        directory: Path,
+        *,
+        missing_2023_quarter: int | None = None,
+        poison_postfit: bool = True,
+    ) -> Path:
         rows: list[dict[str, float | int | str]] = []
         for year in range(2010, 2024):
             for index in range(24):
-                poison = 2018 <= year <= 2022
+                poison = poison_postfit and 2018 <= year <= 2022
                 quarter = index % 4 + 1
                 if year == 2023 and quarter == missing_2023_quarter:
                     continue
@@ -195,7 +203,7 @@ class ProductTests(unittest.TestCase):
                     evaluate_product(source, output, (2022, 2023))
                 with self.assertRaisesRegex(ValueError, "years"):
                     evaluate_product(source, output, (2018, 2018))
-                for invalid_years in ([2018], (2019, 2018), (2017,)):
+                for invalid_years in ([2018], (2019, 2018), (2017,), (2018,), (2018, 2019)):
                     with self.subTest(years=invalid_years), self.assertRaisesRegex(ValueError, "years"):
                         evaluate_product(source, output, invalid_years)  # type: ignore[arg-type]
                 incomplete = self._prepared_file(root, missing_2023_quarter=4)
@@ -209,6 +217,31 @@ class ProductTests(unittest.TestCase):
         self.assertEqual([2023], result["years"])
         self.assertEqual(2023, result["annual"]["cohort_year"])
         self.assertEqual([1, 2, 3, 4], [row["cohort_quarter"] for row in result["quarters"]])
+
+    def test_evaluate_product_summarizes_the_complete_2018_2022_window(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = self._prepared_file(root, poison_postfit=False)
+            output = root / "pd24-model.joblib"
+            save_bundle(self._train(source), output)
+            with patch("src.product.EXPECTED_DATA_SHA256", self._sha256(source)):
+                result = evaluate_product(source, output, PRE_HOLDOUT_YEARS)
+
+        annual = result["annual"]
+        brier = np.asarray([row["metrics"]["brier"] for row in annual])
+        expected = {
+            "macro_mean": float(np.mean(brier)),
+            "median": float(np.median(brier)),
+            "iqr": float(np.diff(np.quantile(brier, [0.25, 0.75]))[0]),
+            "worst_year": annual[int(np.argmax(brier))]["cohort_year"],
+        }
+        self.assertEqual(list(PRE_HOLDOUT_YEARS), result["years"])
+        self.assertEqual(expected, result["summary"]["brier"])
+        self.assertEqual(
+            set(annual[0]["metrics"]) - {"n", "events", "prevalence"},
+            set(result["summary"]),
+        )
+        json.dumps(result)
 
     def test_synthetic_training_is_deterministic_end_to_end(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -22,6 +22,7 @@ from .metrics import (
     quantile_breaks,
     risk_band_cutoffs,
     risk_bands,
+    summarize_year_metrics,
 )
 from .pd_model import PRODUCT_FEATURES, SigmoidCalibratedModel, fit_calibrated_model
 
@@ -303,14 +304,7 @@ def _period_result(frame: pd.DataFrame, probability: np.ndarray, bundle: Mapping
 
 
 def evaluate_product(data_path: str | Path, bundle_path: str | Path, years: tuple[int, ...]) -> dict[str, object]:
-    if (
-        not isinstance(years, tuple)
-        or not years
-        or any(type(year) is not int for year in years)
-        or len(set(years)) != len(years)
-        or years != tuple(sorted(years))
-        or (years != (HOLDOUT_YEAR,) and not all(type(year) is int and year in PRE_HOLDOUT_YEARS for year in years))
-    ):
+    if years not in (PRE_HOLDOUT_YEARS, (HOLDOUT_YEAR,)):
         raise ValueError("years must be 2018--2022 or exactly (2023,)")
     bundle = load_bundle(bundle_path)
     frame, observed = load_compact(data_path, EXPECTED_DATA_SHA256, years=years)
@@ -334,5 +328,8 @@ def evaluate_product(data_path: str | Path, bundle_path: str | Path, years: tupl
         "years": list(years),
         "data_sha256": observed,
         "annual": annual,
+        "summary": summarize_year_metrics(
+            [{"cohort_year": row["cohort_year"], **row["metrics"]} for row in annual]
+        ),
         "pooled": _period_result(frame, probability, bundle, {}),
     }
