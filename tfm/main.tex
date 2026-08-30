@@ -7,6 +7,7 @@
 \usepackage{microtype}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\hypersetup{hidelinks}
 
 \title{PD24: producto predictivo de probabilidad de impago a 24 meses}
 \author{Daniel Ladrero Meca}
@@ -34,7 +35,7 @@ local. El alcance se ha retirado de un estudio amplio: PD24 recibe cinco número
 estima \texttt{default\_24m} y devuelve un score y una banda. No aprueba,
 deniega ni explica causalmente préstamos. La guía del TFM pide análisis,
 comparación, interpretación, reproducibilidad y una memoria orientada al uso
-profesional\footnote{\textit{01_Guía para el Trabajo Fin de Master - UCM - Online - Data Science, Big Data  Business Analytics.pdf}, pp.~1--3, 7 y 10--12.};
+profesional\footnote{\textit{01\_Guía para el Trabajo Fin de Master - UCM - Online - Data Science, Big Data  Business Analytics.pdf}, pp.~1--3, 7 y 10--12.};
 el producto adopta ese marco sin convertirlo en un sistema de crédito.
 
 La evidencia sigue una secuencia deliberadamente estrecha: definición y tiempo,
@@ -59,7 +60,7 @@ Las entradas son \texttt{origination\_fico}, \texttt{original\_dti},
 \texttt{number\_of\_borrowers}. Son rasgos disponibles en originación; no
 prueban causas ni permiten explicar un préstamo individual. La limpieza, rangos,
 ausencias y relaciones entre variables se apoyan directamente en la preparación
-de datos enseñada\footnote{\textit{Slides_Data_Understanding_Preparation.pdf}, pp.~3--12.};
+de datos enseñada\footnote{\textit{Slides\_Data\_Understanding\_Preparation.pdf}, pp.~3--12.};
 la definición binaria, ventana de observación y maduración se apoyan en el
 material de scoring\footnote{\textit{Apuntes Scoring de Riesgos.pdf}, pp.~2, 5--16 y 19.}.
 
@@ -81,7 +82,7 @@ La selección utiliza folds temporales 2015--2017 con seis años de desarrollo,
 dos de calibración y tres de embargo. El modelo congelado se ajusta con
 2010--2015 y se calibra separadamente con 2016--2017; los años posteriores no
 reabren ese ajuste. La regresión logística, ROC/AUC y selección sin
-sobreparametrizarse proceden de los materiales del máster\footnote{\textit{Slides_Regresión_logística.pdf}, pp.~3--17; \textit{Slides_Selección_de_variables.pdf}, pp.~5--10.}.
+sobreparametrizarse proceden de los materiales del máster\footnote{\textit{Slides\_Regresión\_logística.pdf}, pp.~3--17; \textit{Slides\_Selección\_de\_variables.pdf}, pp.~5--10.}.
 
 Se reportan AUC y PR-AUC para discriminación, KS para separación, Brier y
 log-loss para calidad probabilística, e intercepto y pendiente para calibración.
@@ -192,14 +193,14 @@ deriva y calidad de inputs, no AUC, calibración ni rendimiento predictivo.
 
 El flujo mínimo es compacto local $\rightarrow$ entrenamiento $\rightarrow$
 bundle local $\rightarrow$ API Flask. El bundle congelado \texttt{five-variable-pd-2}
-contiene contrato, modelo, calibrador, bandas y hashes: datos
-\texttt{33f69db7662dee9265bc28cb6d01b4099d6727641c1d6e4a579930df5149fb91},
-implementación \texttt{25afde87d50c0e82982c3c13b557384a2f676384bec21c6e2131420dc8f236aa}
-y bundle \texttt{a1ef460b883770bf39fe21b104ecfdb2522b2f916159ff2b24e1dcedad908d7b}.
+contiene contrato, modelo, calibrador, bandas y hashes:
+\par\noindent{\scriptsize datos \texttt{33f69db7662dee9265bc28cb6d01b4099d6727641c1d6e4a579930df5149fb91}}
+\par\noindent{\scriptsize implementación \texttt{25afde87d50c0e82982c3c13b557384a2f676384bec21c6e2131420dc8f236aa}}
+\par\noindent{\scriptsize bundle \texttt{a1ef460b883770bf39fe21b104ecfdb2522b2f916159ff2b24e1dcedad908d7b}}.
 El producto sirve \texttt{GET /health} y \texttt{POST /predict} sólo en local.
 
 El modelo como servicio, REST, HTTP, JSON, rutas Flask y ejecución local son
-contenidos trazables al módulo de productivización\footnote{\textit{00_UCM_BigData_Productivizar_Modelos_v1.pdf}, pp.~40--42, 58--75 y 98--115.}.
+contenidos trazables al módulo de productivización\footnote{\textit{00\_UCM\_BigData\_Productivizar\_Modelos\_v1.pdf}, pp.~40--42, 58--75 y 98--115.}.
 El uso de serialización, pruebas automatizadas y el diseño concreto de esta
 integridad son extensiones de implementación del TFM, no prácticas que se
 atribuyan explícitamente a ese módulo.
@@ -221,10 +222,17 @@ contenedores ni despliegue externo.
 La lectura de la figura es literal: una petición de cinco números llega al
 bundle congelado y retorna un aviso académico, no una decisión. La demostración
 real fue:
-\begin{verbatim}
-{"number_of_borrowers":2,"original_interest_rate":4.5,"origination_fico":700,"original_dti":30,"original_cltv":80}
-{"horizon_months":24,"model_version":"pd24-v1","risk_band":"medium","risk_score":0.005874119344598262,"warning":"Academic risk estimate; not a credit decision."}
-\end{verbatim}
+{\scriptsize\begin{verbatim}
+{
+  "number_of_borrowers": 2, "original_interest_rate": 4.5,
+  "origination_fico": 700, "original_dti": 30, "original_cltv": 80
+}
+{
+  "horizon_months": 24, "model_version": "pd24-v1", "risk_band": "medium",
+  "risk_score": 0.005874119344598262,
+  "warning": "Academic risk estimate; not a credit decision."
+}
+\end{verbatim}}
 El score equivale aproximadamente a 0,587\%, pero se conserva arriba la copia
 JSON exacta. Una respuesta correcta demuestra el contrato local; no resuelve el
 fallo de calibración observado en el holdout.
