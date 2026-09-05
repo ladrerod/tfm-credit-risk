@@ -1,47 +1,71 @@
 from __future__ import annotations
 
-import csv
-import io
+import hashlib
 from collections.abc import Iterator
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import zstandard as zstd
-
-from .integrity import file_sha256
 
 COMPACT_COLUMNS = (
     "cohort_year",
     "cohort_quarter",
-    "origination_fico",
-    "original_dti",
-    "original_cltv",
+    "first_payment_date",
     "original_interest_rate",
+    "original_upb",
+    "original_loan_term",
+    "original_ltv",
+    "original_cltv",
     "number_of_borrowers",
+    "original_dti",
+    "origination_fico",
+    "mortgage_insurance_percentage",
+    "first_time_home_buyer",
+    "loan_purpose",
+    "property_type",
+    "number_of_units",
+    "occupancy_status",
+    "property_state",
+    "amortization_type",
+    "mortgage_insurance_type",
+    "high_balance_loan",
     "pd_label_available_date",
     "default_24m",
 )
 SOURCE_CUTOFF = pd.Timestamp("2026-03-01")
+CATEGORICAL_COLUMNS = (
+    "first_time_home_buyer",
+    "loan_purpose",
+    "property_type",
+    "number_of_units",
+    "occupancy_status",
+    "property_state",
+    "amortization_type",
+    "mortgage_insurance_type",
+    "high_balance_loan",
+)
+
+
+def file_sha256(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        while block := stream.read(1024 * 1024):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def read_csv_zst(path: str | Path, *, chunksize: int) -> Iterator[pd.DataFrame]:
     if not isinstance(chunksize, int) or isinstance(chunksize, bool) or chunksize <= 0:
         raise ValueError("chunksize must be positive")
-    with Path(path).open("rb") as compressed:
-        with zstd.ZstdDecompressor().stream_reader(compressed) as reader:
-            with io.TextIOWrapper(reader, encoding="utf-8", newline="") as text:
-                header = next(csv.reader([text.readline()]), [])
-                if tuple(header) != COMPACT_COLUMNS:
-                    raise ValueError("compact CSV header must match exactly")
-                for frame in pd.read_csv(
-                    text,
-                    header=None,
-                    names=COMPACT_COLUMNS,
-                    chunksize=chunksize,
-                    dtype={"default_24m": "string"},
-                ):
-                    yield frame
+    for frame in pd.read_csv(
+        path,
+        compression="zstd",
+        chunksize=chunksize,
+        dtype={"default_24m": "string"},
+    ):
+        if tuple(frame.columns) != COMPACT_COLUMNS:
+            raise ValueError("compact CSV header must match exactly")
+        yield frame
 
 
 def load_compact(
@@ -54,7 +78,9 @@ def load_compact(
     observed = file_sha256(path)
     if observed != expected_sha256:
         raise ValueError("compact sha256 does not match expected value")
-    if not years or any(type(year) is not int or not 2004 <= year <= 2023 for year in years):
+    if not years or any(
+        type(year) is not int or not 2004 <= year <= 2023 for year in years
+    ):
         raise ValueError("requested years must be within 2004--2023")
 
     selected: list[pd.DataFrame] = []
@@ -82,31 +108,54 @@ def load_compact(
         ):
             raise ValueError("cohort_quarter is invalid")
         frame["cohort_quarter"] = quarter.astype(int)
-        for cohort, count in frame.groupby(["cohort_year", "cohort_quarter"], sort=False).size().items():
+        for cohort, count in (
+            frame.groupby(["cohort_year", "cohort_quarter"], sort=False).size().items()
+        ):
             rows_per_quarter[cohort] = rows_per_quarter.get(cohort, 0) + int(count)
             if rows_per_quarter[cohort] > 12_500:
                 raise ValueError("compact exceeds the quarterly row cap")
 
         target = pd.to_numeric(frame["default_24m"], errors="raise")
-        if target.isna().any() or not np.isfinite(target).all() or not target.isin([0, 1]).all():
+        if (
+            target.isna().any()
+            or not np.isfinite(target).all()
+            or not target.isin([0, 1]).all()
+        ):
             raise ValueError("default_24m must be binary")
         frame["default_24m"] = target.astype(int)
+        first_payment = pd.to_datetime(frame["first_payment_date"], errors="raise")
         available = pd.to_datetime(frame["pd_label_available_date"], errors="raise")
-        if available.isna().any() or (available > SOURCE_CUTOFF).any():
+        if (
+            first_payment.isna().any()
+            or available.isna().any()
+            or not (first_payment + pd.DateOffset(months=23)).eq(available).all()
+            or (available > SOURCE_CUTOFF).any()
+        ):
             raise ValueError("default_24m is not mature")
+        frame["first_payment_date"] = first_payment
         frame["pd_label_available_date"] = available
         for column, minimum, maximum in (
             ("origination_fico", 300, 850),
             ("original_dti", 0, 65),
-            ("original_cltv", 0, 200),
-            ("original_interest_rate", 0, 1000),
-            ("number_of_borrowers", 1, 1000),
+            ("original_cltv", 0, 1_000),
+            ("original_interest_rate", 0, 100),
+            ("number_of_borrowers", 1, 99),
+            ("original_upb", 1, 100_000_000),
+            ("original_loan_term", 1, 720),
+            ("original_ltv", 0, 1_000),
+            ("mortgage_insurance_percentage", 0, 100),
         ):
             values = pd.to_numeric(frame[column], errors="raise")
             present = values.notna()
-            if not np.isfinite(values[present]).all() or not values[present].between(minimum, maximum).all():
+            if (
+                not np.isfinite(values[present]).all()
+                or not values[present].between(minimum, maximum).all()
+            ):
                 raise ValueError(f"{column} is outside its permitted range")
             frame[column] = values
+        for column in CATEGORICAL_COLUMNS:
+            values = frame[column].astype("string")
+            frame[column] = values.astype(object).where(values.notna(), np.nan)
         selected.append(frame)
     if not selected:
         raise ValueError("compact contains no requested rows")

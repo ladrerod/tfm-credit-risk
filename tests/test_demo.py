@@ -7,7 +7,16 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from src.pd_model import PRODUCT_FEATURES
+from src.pd_model import INTEGER_FEATURES, PRODUCT_FEATURES
+
+PAYLOAD = {
+    "origination_fico": 700,
+    "original_dti": 30,
+    "original_cltv": 80,
+    "original_interest_rate": 4.5,
+    "number_of_borrowers": 2,
+}
+VALUES = tuple(PAYLOAD[feature] for feature in PRODUCT_FEATURES)
 
 
 class DemoTests(unittest.TestCase):
@@ -24,32 +33,35 @@ class DemoTests(unittest.TestCase):
             "model": model,
             "features": list(PRODUCT_FEATURES),
             "input_schema": {
-                "origination_fico": {"type": "number", "minimum": 430.0, "maximum": 844.0},
-                "original_dti": {"type": "number", "minimum": 1.0, "maximum": 64.0},
-                "original_cltv": {"type": "number", "minimum": 2.0, "maximum": 200.0},
-                "original_interest_rate": {"type": "number", "minimum": 2.25, "maximum": 8.7},
-                "number_of_borrowers": {"type": "number", "minimum": 1.0, "maximum": 2.0},
+                feature: {
+                    "type": "integer" if feature in INTEGER_FEATURES else "number",
+                    "minimum": 0.0,
+                    "maximum": 844.0 if feature == "origination_fico" else 1_000.0,
+                }
+                for feature in PRODUCT_FEATURES
             },
             "risk_band_cutoffs": [0.5, 0.9],
         }
 
-    def test_predict_loan_returns_pd_band_and_warning(self) -> None:
+    def test_predict_loan_returns_score_band_and_warning(self) -> None:
         _, predict_loan = self._demo_functions()
         model = ProbabilityModel(0.5)
 
-        result = predict_loan(self._bundle(model), 700, 30, 80, 4.5, 2)
+        result = predict_loan(self._bundle(model), *VALUES)
 
-        self.assertEqual((50.0, "Media", "Estimación académica; no es una decisión de crédito."), result)
+        self.assertEqual(
+            (0.5, "Media", "Estimación académica; no es una decisión de crédito."),
+            result,
+        )
         self.assertEqual(list(PRODUCT_FEATURES), list(model.features.columns))
 
     def test_predict_loan_rejects_invalid_values_without_scoring(self) -> None:
         _, predict_loan = self._demo_functions()
-        for values in (
-            (None, 30, 80, 4.5, 2),
-            (float("nan"), 30, 80, 4.5, 2),
-            (900, 30, 80, 4.5, 2),
-        ):
-            with self.subTest(values=values):
+        fico_index = PRODUCT_FEATURES.index("origination_fico")
+        for value in (None, float("nan"), 700.5, 900):
+            values = list(VALUES)
+            values[fico_index] = value
+            with self.subTest(value=value):
                 model = ProbabilityModel(0.5)
                 probability, band, message = predict_loan(self._bundle(model), *values)
                 self.assertIsNone(probability)
@@ -60,21 +72,29 @@ class DemoTests(unittest.TestCase):
     def test_predict_loan_hides_model_failures(self) -> None:
         _, predict_loan = self._demo_functions()
 
-        result = predict_loan(self._bundle(ProbabilityModel(RuntimeError("private detail"))), 700, 30, 80, 4.5, 2)
+        result = predict_loan(
+            self._bundle(ProbabilityModel(RuntimeError("private detail"))),
+            *VALUES,
+        )
 
         self.assertEqual((None, "", "No se pudo calcular la predicción."), result)
 
-    def test_create_demo_has_five_inputs_and_three_outputs(self) -> None:
+    def test_create_demo_has_product_inputs_and_three_outputs(self) -> None:
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", (DeprecationWarning, PendingDeprecationWarning))
+            warnings.simplefilter(
+                "ignore", (DeprecationWarning, PendingDeprecationWarning)
+            )
             create_demo, _ = self._demo_functions()
             try:
-                with patch("scripts.serve_demo.load_bundle", return_value=self._bundle(ProbabilityModel(0.5))):
+                with patch(
+                    "scripts.serve_demo.load_bundle",
+                    return_value=self._bundle(ProbabilityModel(0.5)),
+                ):
                     demo = create_demo("synthetic-bundle")
             except ModuleNotFoundError as error:
                 self.fail(f"the Gradio dependency is unavailable: {error}")
 
-        self.assertEqual(5, len(demo.input_components))
+        self.assertEqual(len(PRODUCT_FEATURES), len(demo.input_components))
         self.assertEqual(3, len(demo.output_components))
 
 

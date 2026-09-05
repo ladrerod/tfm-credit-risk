@@ -13,7 +13,110 @@
 \renewcommand*\l@section{\@dottedtocline{1}{1.5em}{2.3em}}
 \makeatother
 
-\title{PD24: producto predictivo de probabilidad de impago a 24 meses}
+% ---------------------------------------------------------------------------
+% Resultados reproducidos por notebooks/01_seleccion_modelo.ipynb.
+% ---------------------------------------------------------------------------
+\newcommand{\DataFile}{\texttt{freddie-pd24-wide.csv.zst}}
+\newcommand{\DataHash}{\texttt{316dc7b4c16878d9ca62694626263e3a9276512809000d003f456fffe0740589}}
+\newcommand{\SourceLoans}{999.965}
+\newcommand{\SourceEvents}{15.154}
+\newcommand{\ModelLoans}{996.447}
+\newcommand{\ModelEvents}{15.082}
+\newcommand{\ModelEventRate}{1,513578\%}
+\newcommand{\SelectedFamily}{XGBoost}
+\newcommand{\SelectedK}{5}
+\newcommand{\SelectedWindow}{5}
+\newcommand{\SelectedFeatures}{FICO, DTI, CLTV, tipo de interés y número de prestatarios}
+\newcommand{\DevelopmentPeriod}{2013--2017}
+\newcommand{\BandPeriod}{2018--2019}
+\newcommand{\XGBTrees}{100}
+\newcommand{\XGBRate}{0,1}
+\newcommand{\XGBDepth}{2}
+\newcommand{\MeanAUC}{0,755128}
+\newcommand{\MeanKS}{0,388325}
+\newcommand{\WorstAUC}{0,706411}
+\newcommand{\XGBAUC}{0,755128}
+\newcommand{\XGBKS}{0,388325}
+\newcommand{\XGBWorst}{0,706411}
+\newcommand{\FiveAUC}{0,755128}
+\newcommand{\FiveKS}{0,388325}
+\newcommand{\FiveWorst}{0,706411}
+\newcommand{\DeltaFiveAUC}{+0,001775}
+\newcommand{\DeltaFiveKS}{+0,008405}
+\newcommand{\DeltaFiveWorst}{+0,004099}
+\newcommand{\WideAUC}{0,756902}
+\newcommand{\WideKS}{0,396730}
+\newcommand{\WideWorst}{0,710510}
+\newcommand{\LogisticAUC}{0,745813}
+\newcommand{\LogisticKS}{0,379125}
+\newcommand{\LogisticWorst}{0,695733}
+\newcommand{\TreeAUC}{0,715737}
+\newcommand{\TreeKS}{0,334203}
+\newcommand{\TreeWorst}{0,663681}
+\newcommand{\RFAUC}{0,737513}
+\newcommand{\RFKS}{0,357867}
+\newcommand{\RFWorst}{0,690806}
+\newcommand{\AdaAUC}{0,751369}
+\newcommand{\AdaKS}{0,386146}
+\newcommand{\AdaWorst}{0,704155}
+\newcommand{\GBAUC}{0,753217}
+\newcommand{\GBKS}{0,387668}
+\newcommand{\GBWorst}{0,703884}
+\newcommand{\LegacyAUC}{0,756902}
+\newcommand{\LegacyKS}{0,396730}
+\newcommand{\LegacyWorst}{0,710510}
+\newcommand{\DeltaLegacyAUC}{-0,001775}
+\newcommand{\DeltaLegacyKS}{-0,008405}
+\newcommand{\DeltaLegacyWorst}{-0,004099}
+\newcommand{\AUCYZero}{0,757967}
+\newcommand{\KSYZero}{0,393083}
+\newcommand{\AUCYFirst}{0,706411}
+\newcommand{\KSYFirst}{0,311898}
+\newcommand{\AUCYSecond}{0,776334}
+\newcommand{\KSYSecond}{0,417582}
+\newcommand{\AUCYThird}{0,779799}
+\newcommand{\KSYThird}{0,430735}
+\newcommand{\StressAUC}{0,746118}
+\newcommand{\StressKS}{0,383398}
+\newcommand{\FinalAUC}{0,790355}
+\newcommand{\FinalKS}{0,453622}
+\newcommand{\FinalPRAUC}{0,060381}
+\newcommand{\FinalBrier}{0,016581}
+\newcommand{\FinalLogLoss}{0,079926}
+\newcommand{\FinalN}{49.815}
+\newcommand{\FinalEvents}{853}
+\newcommand{\FinalPrevalence}{1,7123\%}
+\newcommand{\FinalMeanScore}{0,009184}
+\newcommand{\LowBandRate}{0,002407}
+\newcommand{\MediumBandRate}{0,016359}
+\newcommand{\HighBandRate}{0,053864}
+\newcommand{\LowBandScore}{0,001953}
+\newcommand{\MediumBandScore}{0,007849}
+\newcommand{\HighBandScore}{0,030145}
+\newcommand{\ExampleScore}{0,003416}
+\newcommand{\ExampleBand}{\texttt{medium}}
+\newcommand{\BundleVersion}{7}
+\newcommand{\ModelVersion}{\texttt{pd24-xgboost-5v-7}}
+
+% Funciona desde tmp/ y también si este contenido se copia posteriormente a tfm/.
+\newcommand{\TFMFigure}[3][0.96\linewidth]{%
+  \begin{figure}[H]
+  \centering
+  \IfFileExists{../tfm/figures/#2}{%
+    \includegraphics[width=#1]{../tfm/figures/#2}%
+  }{%
+    \IfFileExists{figures/#2}{%
+      \includegraphics[width=#1]{figures/#2}%
+    }{%
+      \fbox{\parbox[c][42mm][c]{0.90\linewidth}{\centering
+      Figura pendiente de regenerar: \texttt{\detokenize{#2}}}}%
+    }%
+  }
+  \caption{#3}
+  \end{figure}
+}
+
+\title{PD24: selección temporal y producto local para estimar el impago a 24 meses}
 \author{Daniel Ladrero Meca}
 \date{2026}
 
@@ -21,17 +124,23 @@
 \maketitle
 
 \begin{abstract}
-PD24 responde a una pregunta acotada: si cinco variables disponibles en la
-originación bastan para ordenar el riesgo de impago hipotecario a 24 meses y
-entregar el resultado como un producto local verificable. El estudio usa un
-compacto de 999.965 préstamos Freddie Mac de 2004--2023, compara históricamente
-regresión logística e HistGradientBoosting (HGB), selecciona la alternativa más
-parsimoniosa y la encapsula en un bundle versionado servido mediante una API
-JSON y una interfaz local Gradio. En el holdout de 2023, la regresión alcanza
-AUC 0,773358 y KS 0,400860,
-pero incumple la guarda de intercepto de calibración. El resultado acredita
-discriminación y un producto académico funcional; no acredita una probabilidad
-absoluta estable ni un sistema de decisión crediticia.
+Este Trabajo Fin de Máster desarrolla PD24, un producto académico que estima el
+riesgo de impago hipotecario durante los 24 meses posteriores al primer pago.
+La fuente es el conjunto de préstamos de Freddie Mac. El input analítico local
+contiene \SourceLoans{} observaciones y \SourceEvents{} eventos de cohortes
+2004--2023; la comparación común modela \ModelLoans{} observaciones y
+\ModelEvents{} eventos después de excluir 3.518 filas sin enlace unívoco con
+las variables ampliadas. El experimento respeta el orden temporal, separa 2020
+como estrés y compara contratos, ventanas y familias sobre la misma población.
+La búsqueda contrasta una ruta de 1 a 16 entradas independientes y conserva los
+18 campos originales sólo como comparador histórico. La especificación
+resultante usa \SelectedK{} entradas (\SelectedFeatures), una ventana de
+\SelectedWindow{} años y la familia \SelectedFamily{}. El modelo alcanza un AUC medio de \MeanAUC{}, un KS
+medio de \MeanKS{} y un peor AUC anual de \WorstAUC{} en los periodos de
+selección. Estos valores proceden de una ejecución completa del notebook. La entrega incluye evidencia reproducible,
+un artefacto versionado, una API JSON y una interfaz web local. El score no
+aprueba ni deniega préstamos y no estima EAD, LGD, pérdida esperada, precio,
+provisiones ni capital.
 \end{abstract}
 
 \setcounter{tocdepth}{1}
@@ -40,782 +149,894 @@ absoluta estable ni un sistema de decisión crediticia.
 \clearpage
 \section{Resumen ejecutivo}
 
-\textbf{Pregunta de investigación.} ¿Puede un contrato de sólo cinco variables
-de originación conservar una capacidad predictiva útil para el impago a 24
-meses y convertirse en software local reproducible, sin transformarse en un
-sistema de concesión? La respuesta obtenida es afirmativa para la ordenación
-del riesgo y la demostración técnica, pero no para la estabilidad de la
-probabilidad absoluta.
+\textbf{Problema.} El proyecto partía de un estudio amplio de riesgo hipotecario
+que mezclaba predicción, pérdida esperada, escenarios y cuestiones financieras.
+Ese alcance hacía difícil identificar el producto de programación y ciencia de
+datos que se pretendía defender. El TFM se concentra ahora en una pregunta única:
+con información disponible al inicio del préstamo, ¿es posible ordenar el riesgo
+de que aparezca un impago durante los 24 meses siguientes al primer pago?
 
-El objetivo general es recorrer un ciclo de ciencia de datos completo y
-auditable. Los objetivos específicos son: (i) definir una etiqueta binaria y
-una población temporalmente madura; (ii) seleccionar el menor contrato de
-entrada que conserve señal; (iii) comparar una familia lineal interpretable con
-un challenger no lineal; (iv) medir discriminación, calibración y estabilidad;
-y (v) entregar el modelo como un artefacto versionado accesible por API y por
-un formulario local, cubierto por pruebas.
+\textbf{Evidencia.} La respuesta se obtiene mediante un experimento temporal. El
+orden de incorporación de variables se aprende en un periodo anterior; después
+se comparan los tamaños de contrato, las ventanas de historia y varias familias
+explicadas en el máster: regresión logística, árbol de decisión, Random Forest,
+AdaBoost, Gradient Boosting y XGBoost. Cada transformación se aprende dentro de
+su bloque de desarrollo. Los años 2018, 2019, 2021 y 2022 intervienen en la selección,
+2020 se reserva como estrés retrospectivo y 2023 se informa como evaluación
+temporal reutilizada, no como prueba virgen.
 
-La solución recibe FICO, DTI, CLTV, tipo de interés y número de prestatarios,
-aplica una regresión logística calibrada y devuelve un score y una banda de
-riesgo. El flujo completo es datos locales, entrenamiento, bundle versionado,
-función común de scoring, API e interfaz local y validación automática. Los
-criterios de éxito no incluyen una tasa
-de aprobación: exigen reproducibilidad, ausencia de fuga temporal, capacidad de
-ordenación suficiente, evaluación explícita de calibración y un contrato de
-software estricto.
-
-La evidencia principal es doble. Primero, cinco variables conservan la
-capacidad predictiva frente al contrato histórico de dieciocho entradas y HGB
-no mejora de forma suficiente la discriminación. Segundo, el modelo final
-mantiene capacidad de ordenación en 2023, pero su intercepto de calibración
-(-0,654081) queda fuera de la guarda [-0,5; 0,5]. Por tanto, PD24 es defendible
-como producto predictivo académico y demostración de programación, análisis de
-datos y aprendizaje automático, pero no como motor de aprobación, precio,
-provisión o capital.
+\textbf{Modelo.} La auditoría fija una ventana de \SelectedWindow{} años y la
+configuración XGBoost. Con ellos, 16 variables alcanzan el máximo numérico, pero
+el producto conserva \SelectedK{} por la escasa diferencia y compara seis
+familias sobre ese contrato. La elección de familia ordena los finalistas por AUC
+medio, peor AUC anual y KS medio usando los valores completos, no empates creados
+por redondeo. Su AUC medio es \MeanAUC{} y su KS medio \MeanKS{}. La comparación
+frente al contrato de 16 entradas, la regresión logística y el contrato histórico de
+18 entradas se resume en la siguiente tabla.
 
 \begin{center}\small
-\begin{tabular}{p{0.19\linewidth} p{0.24\linewidth} p{0.22\linewidth} p{0.25\linewidth}}
-\textbf{Problema} & \textbf{Evidencia} & \textbf{Decisión} & \textbf{Límite}\\ \hline
-Contrato complejo & Cinco variables superan la puerta frente a 18 & Mantener cinco entradas & Comparación histórica no recalculable\\
-Elección de familia & Logística: AUC macro 0,815065; HGB: 0,800760 & Seleccionar logística & HGB queda como benchmark histórico\\
-Uso del resultado & AUC 2023 de 0,773358 y bandas ordenadas & Entregar score y banda & No aprobar ni denegar préstamos\\
-Probabilidad absoluta & Intercepto 2023 de -0,654081 & Declarar fallo de calibración & Recalibrar antes de un uso real\\
+\begin{tabular}{p{0.31\linewidth} r r r}
+\textbf{Especificación} & \textbf{AUC medio} & \textbf{KS medio} & \textbf{Peor AUC}\\ \hline
+Finalista seleccionado & \MeanAUC{} & \MeanKS{} & \WorstAUC{}\\
+Dieciséis entradas, máximo numérico & \WideAUC{} & \WideKS{} & \WideWorst{}\\
+Regresión logística, mismo contrato & \LogisticAUC{} & \LogisticKS{} & \LogisticWorst{}\\
+Comparador histórico de 18 entradas, diagnóstico posterior & \LegacyAUC{} & \LegacyKS{} & \LegacyWorst{}\\
 \end{tabular}
 \end{center}
+
+\textbf{Producto.} La especificación congelada se entrena desde un fichero local,
+se guarda en un bundle versionado y se utiliza desde una única función de
+predicción. Esa función alimenta tanto una API Flask como un formulario Gradio.
+El usuario introduce un préstamo y recibe un score entre cero y uno, una banda
+de riesgo relativa y una advertencia de alcance. No hay base de datos, servicio
+en la nube, aprobación automática ni segunda implementación del modelo.
+
+\textbf{Límite principal.} Un buen AUC o KS acredita capacidad de ordenación en
+la muestra estudiada, pero no transforma el score en una frecuencia absoluta
+válida para otra entidad, otro producto o un periodo futuro. La población sólo
+contiene préstamos ya originados. Cualquier uso real exigiría nueva evidencia,
+controles organizativos y un periodo posterior completamente no observado.
 
 \clearpage
 \section{Contexto, objetivo y alcance}
 
-El objetivo general es recorrer de forma trazable el ciclo de un problema de
-clasificación: definición del evento, diseño temporal, selección de variables,
-comparación de modelos, evaluación y productivización. Este enfoque responde a
-las exigencias de análisis, interpretación, reproducibilidad y orientación
-profesional de la guía del TFM \cite{guia-tfm}. La aportación no es crear una
-plataforma financiera completa, sino demostrar que un modelo pequeño puede
-entrenarse, congelarse, probarse y consumirse como software.
+El TFM sigue la narrativa problema--evidencia--modelo--producto--límites. Esta
+secuencia permite separar la pregunta predictiva de sus posibles usos y recorrer
+un ciclo aplicado de análisis de datos: definición del evento, control de
+calidad, diseño temporal, selección de variables, entrenamiento, evaluación,
+persistencia y exposición local \cite{guia-tfm}.
 
-El alcance termina en una PD a 24 meses. El score ordena riesgo relativo dentro
-de la población estudiada y la banda resume ese orden. No aprueba ni deniega
-préstamos, no explica causalmente un caso individual y no estima pérdida
-esperada. EAD y LGD sólo serían necesarias si el objetivo futuro fuese calcular
-esa pérdida; no son variables ausentes del problema predictivo actual.
+El objetivo general es construir y demostrar un clasificador que estime el
+riesgo de impago a 24 meses de un préstamo hipotecario ya originado. Los
+objetivos específicos son:
 
-En este documento, \emph{PD24} significa probabilidad estimada del evento
-definido durante los 24 meses posteriores al primer pago. No significa una
-puntuación crediticia comercial, un rating regulatorio ni una regla de corte.
-La utilidad académica consiste en demostrar cómo se traduce una pregunta de
-clasificación en evidencia cuantitativa y, después, en un componente de
-software consumible. La utilidad práctica queda limitada a comparar riesgo
-relativo dentro de una población compatible con la estudiada.
+\begin{enumerate}
+\item definir población, horizonte y etiqueta binaria sin usar comportamiento
+posterior como entrada;
+\item preparar un único input local verificable y documentar sus limitaciones;
+\item impedir fuga de información mediante particiones que respeten el tiempo;
+\item comprobar cuántas variables y cuánta historia aportan capacidad estable;
+\item comparar seis familias predictivas mediante las mismas etapas y periodos;
+\item convertir la especificación elegida en software local reproducible;
+\item explicar con precisión qué demuestra el resultado y qué usos no permite.
+\end{enumerate}
 
-La población de Freddie Mac contiene préstamos ya originados. Por tanto, el
-modelo no observa solicitudes rechazadas y no debe generalizarse a toda la
-población solicitante. Tampoco se ha demostrado transportabilidad a otras
-carteras, países o tipos de crédito. Este posible sesgo de selección se mantiene
-visible porque una buena métrica interna no corrige por sí sola una diferencia
-de población.
+En esta memoria, \emph{PD24} es el nombre del score producido para el evento
+definido. El modelo ofrece una estimación individual y una banda relativa, pero
+no incorpora una política de aceptación. No se elige un punto de corte de
+concesión y no se asocia el resultado con precio, límite o rentabilidad. De esta
+forma la pregunta académica continúa siendo una tarea de clasificación.
 
-Quedan expresamente fuera la política de admisión, el precio, la pérdida
-esperada, la exposición, la severidad, los escenarios macroeconómicos, la
-contabilidad y el capital. Una evolución a pérdida esperada exigiría construir
-y validar por separado EAD y LGD, además de redefinir el caso de uso. Añadirlos
-ahora ampliaría el problema sin mejorar la demostración de programación,
-análisis del dato y modelización que constituye el núcleo del TFM.
+EAD y LGD no son necesarias para responder a esa tarea. La primera describiría
+la exposición cuando se produce el incumplimiento y la segunda su severidad.
+Ambas serían componentes adicionales si el objetivo cambiase a pérdida
+esperada. Añadirlas ahora no mejoraría la evaluación del evento a 24 meses y
+obligaría a formular nuevas poblaciones, etiquetas y validaciones. También se
+excluyen escenarios macroeconómicos, provisiones, capital, precio y
+\emph{backtesting} financiero.
+
+El alcance técnico se limita a herramientas impartidas en el máster: Python,
+Pandas y NumPy para análisis; imputación y transformación de variables;
+regresión logística y clasificadores de árboles; AUC, curva ROC y KS para la
+evaluación; Flask para una API local y Gradio para la demostración web
+\cite{data-prep,seleccion,logistica,clasificadores,scoring}. La codificación
+one-hot, el pipeline, el score, el AUC y la búsqueda de hiperparámetros aparecen
+en \cite[pp.~71, 73--74 y 76--81]{spark}; Gradio, en
+\cite[p.~17]{ml-semanas}; y Flask/REST, en
+\cite[pp.~98, 103--108 y 114]{productivizacion}. La persistencia con
+\texttt{joblib} se documenta sólo como detalle de serialización de esta
+implementación, no como método docente. XGBoost aparece expresamente en
+\cite[p.~24]{ml-semanas}. El TFM no incorpora una técnica simplemente porque
+esté disponible en una librería.
+
+El producto se ejecuta en el equipo del alumno y sólo escucha en
+\texttt{127.0.0.1}. Esta elección es coherente con una demostración académica:
+permite insertar casos, validar entradas y reproducir la salida sin afirmar que
+se ha construido una plataforma multiusuario. Un despliegue compartido requeriría
+autenticación, cifrado, monitorización y gobierno que no forman parte del
+objetivo.
 
 \clearpage
 \section{Datos y definición del problema predictivo}
 
-\subsection{Población, grano y muestreo}
+\subsection{Fuente, población y unidad de análisis}
 
-La fuente es el Single-Family Loan-Level Dataset de Freddie Mac. La unidad de
-análisis es un préstamo hipotecario originado y cada fila conserva sólo el año y
-trimestre de cohorte, cinco atributos de originación, la fecha de disponibilidad
-de la etiqueta y el resultado binario. El compacto local contiene 999.965 filas
-de 2004--2023, nueve columnas y 15.154 eventos (1,515453\%). No contiene
-identificadores de préstamo o prestatario.
+La fuente es el \emph{Single-Family Loan-Level Dataset} de Freddie Mac. La
+unidad de análisis es un préstamo hipotecario y no un cliente, una cuota ni una
+observación mensual. El fichero de trabajo \DataFile{} contiene
+\SourceLoans{} filas de cohortes 2004--2023 y \SourceEvents{} eventos. Para
+comparar todos los contratos sobre la misma base se excluyen 3.518 filas en las
+que no existe un enlace unívoco con los campos ampliados: la población modelada
+queda en \ModelLoans{} préstamos, \ModelEvents{} eventos y una prevalencia de
+\ModelEventRate{}. La misma exclusión se aplica al contrato reducido y al de 18
+campos, de modo que ninguna especificación gana por una diferencia de
+población. La muestra limita el volumen por trimestre para que las cohortes más
+grandes no dominen el experimento. Estas prevalencias describen el fichero
+analítico y la población modelada, no toda la cartera de Freddie Mac.
 
-Se aplicó un límite próximo a 50.000 filas por cohorte anual: los años
-2004--2021 contienen 50.000 observaciones, 2022 contiene 49.999 y 2023, 49.966.
-Esta decisión controla el tamaño y evita que un año domine por volumen, pero
-también impide interpretar la tasa total como prevalencia de la cartera
-completa. La muestra pondera casi por igual vintages con tasas muy distintas y
-no es una fotografía automática del mercado hipotecario.
+El repositorio reducido no descarga ni reconstruye los ficheros originales.
+Los modelos reciben un único input ya preparado. Esta decisión elimina código
+que no participa en el entrenamiento o en la demostración, pero exige declarar
+que la creación del compacto no es reproducible desde el repositorio final. La
+identidad del input sí se comprueba antes de entrenar mediante SHA-256:
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=\linewidth]{figures/eda_population_quality.png}
-\caption{Estructura temporal, desequilibrio y completitud del compacto final.}
-\end{figure}
+\begin{center}
+{\scriptsize\ttfamily
+\DataHash{}}
+\end{center}
 
-La prevalencia anual va del 0,380\% en 2015 al 4,826\% en 2007. Esa variación
-justifica la validación temporal: una partición aleatoria mezclaría regímenes y
-podría ofrecer una visión demasiado optimista de la generalización. El año 2020
-se identifica en las figuras y resultados como periodo excepcional, pero el
-TFM no atribuye sus valores a una causa concreta ni usa esa cohorte para
-seleccionar o calibrar el modelo.
+Un cambio de un byte modifica el hash y detiene la carga. El objetivo no es
+proteger el fichero frente a un atacante, sino impedir que dos ejecuciones que
+se presentan como iguales utilicen datos distintos.
 
-La población sólo incluye préstamos originados y observados por Freddie Mac. No
-incluye solicitudes rechazadas, de modo que existe un posible sesgo de selección
-y no se infiere comportamiento fuera de esta población. Se localizaron 1.455
-filas adicionales con los nueve campos idénticos (0,146\%); al haber retirado
-los identificadores, no es posible distinguir préstamos distintos con iguales
-atributos de duplicados de origen. Se documenta la incertidumbre y no se eliminan
-filas sin evidencia suficiente.
+\TFMFigure{eda_population_quality.png}{Población por cohorte, frecuencia del
+evento y controles básicos de calidad del fichero analítico.}
 
-\subsection{Etiqueta, horizonte y madurez}
+\subsection{Definición de la etiqueta}
 
-La etiqueta \texttt{default\_24m} vale uno cuando aparece la primera mora de 90
-o más días o un código de baja crediticia 02, 03, 09 o 15 dentro de los 24 meses
-posteriores al primer pago. El horizonte es fijo para todas las cohortes y no se
-mezcla con estados mensuales, prepago o severidad de pérdida.
+La variable \texttt{default\_24m} vale uno cuando se observa por primera vez
+una mora de 90 días o más, o uno de los códigos de saldo cero por causa
+crediticia 02, 03, 09 o 15, dentro de los 24 meses posteriores al primer pago.
+Vale cero si no aparece ninguno de esos eventos en el mismo horizonte. La
+etiqueta no representa prepago, pérdida monetaria, exposición ni severidad.
 
-\texttt{pd\_label\_available\_date} representa la primera fecha en que esos 24
-meses están observados. El compacto no contiene etiquetas ausentes y sólo acepta
-cero o uno; la fecha de disponibilidad abarca desde 2006-01-01 hasta 2026-03-01.
-Para el ajuste final se exige además que sea estrictamente anterior a
-2020-03-01. El código valida esquema, dominio y madurez, pero recibe la etiqueta
-ya construida: la derivación desde los ficheros mensuales originales no forma
-parte del producto reducido y se declara como límite de reproducción.
+\texttt{first\_payment\_date} procede del campo \emph{First Payment Date}; no
+se presenta como fecha exacta de originación. La columna
+\texttt{pd\_label\_available\_date} registra cuándo queda completo el horizonte:
+23 meses después del mes inicial forman 24 observaciones mensuales inclusivas.
+El lector comprueba esa relación y excluye cualquier etiqueta que todavía no
+estuviese disponible en el corte temporal de su fold.
 
-\subsection{Calidad y señal descriptiva de las cinco entradas}
+La separación entre fecha del primer pago y fecha de disponibilidad es central.
+Una fila puede pertenecer por cohorte a un año de desarrollo y, sin embargo, no
+estar madura cuando se simula la información que existía en la fecha de prueba.
+En ese caso la fila se excluye de ese ajuste. El control se ejecuta antes de
+entrenar y el número de exclusiones queda registrado.
 
-Las entradas son conocidas en originación. En el compacto completo, la ausencia
-más relevante es DTI (89.077 filas; 8,908\%); FICO, CLTV y número de
-prestatarios tienen menos del 0,04\% y el tipo de interés no tiene ausencias. El
-promedio global oculta un cambio temporal importante: DTI falta en el 24,344\%
-del desarrollo 2010--2015, en el 4,279\% de calibración 2016--2017 y sólo en el
-0,006\% de 2023. Por ello la ausencia puede actuar como marcador de vintage o de
-proceso, no sólo como un dato accidental. El pipeline imputa la mediana y añade
-un indicador de ausencia; en la interpretación no se atribuye causalidad a ese
-indicador.
+\subsection{Variables y calidad}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=\linewidth]{figures/eda_feature_gradients.png}
-\caption{Tasas univariantes por quintil en desarrollo 2010--2015. Los empates
-pueden producir grupos de distinto tamaño; no son efectos causales.}
-\end{figure}
+El punto de partida contiene 18 campos de originación: tipo de interés, saldo,
+plazo, LTV, CLTV, número de prestatarios, DTI, FICO, porcentaje de seguro,
+primer comprador, finalidad, inmueble, unidades, ocupación, estado,
+amortización, tipo de seguro hipotecario y bandera de alto saldo. El tipo de
+seguro se deriva del porcentaje asegurado y el tipo de amortización es constante
+en esta muestra. Ninguno de los dos aporta una fuente independiente. Por ello la
+búsqueda trabaja con 16 candidatas y mantiene las 18 sólo como comparación
+histórica.
 
-Las asociaciones descriptivas apoyan el contrato reducido. Entre los extremos
-de los quintiles, la tasa baja del 1,447\% al 0,102\% al aumentar FICO; sube del
-0,069\% al 0,458\% con DTI, del 0,162\% al 1,563\% con CLTV y del 0,143\% al
-1,268\% con el tipo. Los préstamos con un prestatario presentan 0,746\% frente
-a 0,322\% con dos. Estas comparaciones se realizan antes del modelo
-multivariante, excluyen ausentes sólo para construir cada gráfico y no bastan
-para justificar una decisión individual.
+Los controles previos verifican cabecera, tipos, target binario, años
+permitidos, máximo de filas por trimestre, coherencia de fechas, madurez y
+presencia de ambas clases. Los valores numéricos ausentes se imputan con la
+mediana del desarrollo; los categóricos, con la moda, y después se convierten en
+variables dummy. No se crean indicadores adicionales de ausencia. La
+estandarización se reserva para la regresión logística; XGBoost recibe las
+variables numéricas sin escalar. Todo el preprocesamiento se aprende dentro del
+fold y nada se calcula sobre el año puntuado
+\cite{data-prep}\cite[pp.~71, 73--74 y 76--77]{spark}.
 
-El desarrollo contiene únicamente uno o dos prestatarios, mientras que en 2023
-hay 871 filas con tres a cinco (1,743\%). El endpoint conserva el rango visto en
-desarrollo y rechaza esos valores; la evaluación retrospectiva, en cambio, los
-incluye y muestra el límite de soporte del contrato. La diferencia debe
-considerarse si el producto se extiende a nuevas poblaciones.
+\TFMFigure{eda_feature_gradients.png}{Relación descriptiva entre las variables
+del contrato final y la tasa observada. Las asociaciones no implican
+causalidad.}
 
-Las comprobaciones de tipo, rango, completitud y forma siguen el tratamiento de
-datos impartido en el máster \cite{data-prep}. Los términos de Freddie Mac
-permiten publicar resultados académicos y derivados no comerciales bajo sus
-condiciones, pero no redistribuir datos de forma que se reconstruya el dataset o
-se identifique a personas \cite{freddie-terms}. Por prudencia, compacto y bundle
-permanecen locales; el repositorio contiene código y agregados. Esta descripción
-no constituye asesoramiento jurídico y los controles no eliminan la advertencia
-de la fuente sobre posibles errores u omisiones.
+\subsection{Derechos de uso y límites de representación}
+
+El uso está sujeto a los términos de Freddie Mac
+\cite{freddie-terms,freddie-overview}. El fichero analítico y el bundle
+permanecen locales y no se redistribuyen; el repositorio sólo necesita código,
+documentación y resultados agregados. No se incluyen identificadores de
+préstamo ni de prestatario en el compacto utilizado por el modelado.
+
+La fuente contiene préstamos aceptados y originados. No incluye solicitudes
+rechazadas y, por tanto, no representa a toda la población que podría solicitar
+financiación. Tampoco existe evidencia de transporte a otra entidad, otro país
+o un producto distinto. Estas restricciones son de la población, no errores que
+puedan corregirse aumentando el número de árboles.
 
 \clearpage
 \section{Diseño experimental y selección de variables}
 
 \subsection{Particiones temporales}
 
-La evaluación imita un uso futuro: el modelo sólo aprende de cohortes anteriores
-a las que evalúa. La selección histórica utiliza tres folds. Para el fold 2015
-se desarrolla con 2004--2009, se calibra con 2010--2011 y se embargan
-2012--2014; los folds 2016 y 2017 desplazan cada bloque un año. El embargo deja
-transcurrir el horizonte de 24 meses y reduce el riesgo de que una etiqueta aún
-no madura intervenga en una decisión de modelado.
+Las observaciones no se reparten al azar. Para una prueba anual $T$, el
+desarrollo termina en $T-6$; los años $T-5$ y $T-4$ forman un bloque de
+referencia para construir bandas; $T-3$, $T-2$ y $T-1$ actúan como embargo; y
+$T$ es el año evaluado. Esta distancia conserva el orden temporal y deja
+transcurrir el horizonte de 24 meses. Desarrollo, referencia y prueba son
+disjuntos.
 
 \begin{center}\small
-\begin{tabular}{l p{0.14\linewidth} p{0.14\linewidth} p{0.15\linewidth} p{0.27\linewidth}}
-\textbf{Fase} & \textbf{Cohortes} & \textbf{Resultado} & \textbf{Acceso a etiqueta} & \textbf{Uso permitido}\\ \hline
-Desarrollo final & 2010--2015 & 300.000 filas & $<$ 2020-03-01 & Imputación, escalado y coeficientes\\
-Calibración & 2016--2017 & 99.920 filas & $<$ 2020-03-01 & Sigmoide y cortes P50/P90\\
-Pre-holdout & 2018--2022 & Por año y agregado & Sólo después de congelar ajuste & Evaluación; nunca reentrenamiento\\
-Periodo excepcional & 2020 & Resultado separado & Igual que pre-holdout & Diagnóstico, no selección\\
-Holdout & 2023 & 49.966 filas & Apertura final & Estimación final sin reajuste\\
+\begin{tabular}{p{0.22\linewidth} p{0.20\linewidth} p{0.45\linewidth}}
+\textbf{Fase} & \textbf{Periodo} & \textbf{Función}\\ \hline
+Orden de variables & 2017 & Aprender una ruta común de 16 candidatas\\
+Selección & 2018, 2019, 2021, 2022 & Elegir familia, contrato, ventana y configuración\\
+Estrés & 2020 & Diagnóstico excepcional, fuera de la elección\\
+Evaluación reutilizada & 2023 & Evidencia temporal, no prueba virgen\\
+Producto & Mismo fold de 2023 & Desarrollo \DevelopmentPeriod{}; bandas \BandPeriod{}\\
 \end{tabular}
 \end{center}
 
-El modelo final se ajusta con 2010--2015, se calibra con 2016--2017, se observa
-por año en 2018--2022 y reserva 2023 como holdout. La fecha de etiqueta debe ser
-estrictamente anterior a 2020-03-01 para cualquier fila de ajuste. El año 2020
-se reporta como periodo excepcional y no gobierna selección, calibración ni
-reajuste. Esta decisión no supone que 2020 sea irrelevante: evita basar el modelo
-en un único régimen difícil de generalizar.
+Dentro de desarrollo y referencia sólo se admiten etiquetas disponibles antes
+del primer día del año probado. La imputación y el estimador se ajustan con
+desarrollo. La referencia no modifica el modelo: sólo permite fijar cortes
+relativos de banda sin mirar la distribución del año de prueba. El AUC y el KS
+se calculan exclusivamente en $T$.
 
-\subsection{Controles contra fuga de información}
+El año 2020 se excluye de la selección por el cambio extraordinario asociado a
+la pandemia. Excluirlo no significa ocultarlo: la configuración ya congelada se
+aplica al año y sus resultados se informan como estrés. El año 2023 había sido
+consultado en versiones anteriores, por lo que se denomina evaluación temporal
+reutilizada. Esta precisión evita presentarlo como un periodo ciego.
+
+\subsection{Ruta de incorporación}
+
+La ruta secuencial se calculó una vez comenzando sin variables. En cada paso
+añadió la candidata que producía el mayor AUC en 2017 con una configuración
+XGBoost congelada; el KS resolvió empates exactos. La elección de una variable
+nunca utiliza 2018--2023.
+Para evitar mezclar la ruta con el inicio de la pandemia, sólo se conservan en
+esa prueba de 2017 las etiquetas disponibles antes de marzo de 2020; se excluyen
+74 observaciones tardías.
+Una vez fijado el orden, se conservan los 16 prefijos: el primero tiene una entrada, el
+segundo dos y así sucesivamente.
+
+La ruta es simple y defendible, aunque no explora los $2^{16}$ subconjuntos
+posibles. La ruta \emph{forward} completa y la criba histórica de
+hiperparámetros se conservan como auditoría congelada: repetir toda esa
+exploración tarda aproximadamente 90 minutos. El notebook vuelve a calcular
+íntegramente la curva por tamaño, la comparación de familias y los resultados.
+Así queda visible qué campo se añadió en cada paso y cómo cambió AUC y KS sin
+convertir cada ejecución en un barrido innecesario. El contrato final de
+\SelectedK{} entradas contiene \SelectedFeatures{}.
+
+\subsection{Máximo numérico y decisión de producto}
+
+La ruta de 2017 fija un único orden de variables. Una criba amplia previa comparó
+configuraciones XGBoost y ventanas temporales y fijó 100 árboles, tasa 0,1,
+profundidad 2 y cinco años. Con esa configuración, el notebook revalida las
+ventanas de 1, 3 y 5 años y la expansiva, vuelve a calcular los 16 prefijos y
+compara las seis familias sobre el contrato del producto.
+
+Contrastar ambos ejes responde también a la motivación externa de Huang y Yang
+\cite{huang-yang-2024}, quienes estudian si más variables y más historia mejoran
+siempre la predicción hipotecaria. Su artículo no fija la metodología ni el
+resultado de PD24: utiliza otra fuente, otro target y variables mensuales.
+
+La auditoría previa cruzó las ventanas de 1, 3 y 5 años y la expansiva. La
+ejecución entregable repite ese contraste con el ajuste ganador, reevalúa los 16
+prefijos y muestra que 16 alcanza el máximo literal, pero su ventaja frente a cinco es
+demasiado pequeña para justificar once campos adicionales. El producto conserva
+cinco por parsimonia. Regresión logística, árbol, Random Forest, AdaBoost,
+Gradient Boosting y XGBoost se comparan entonces con esas cinco entradas, la
+misma ventana y los mismos años.
+
+No se incluye una ventana fija de 10 años: el corte de 2018 requeriría la cohorte
+2003, anterior al inicio del fichero. Truncarla sólo para ese fold cambiaría su
+definición. La alternativa expansiva conserva el contraste con historia larga
+usando toda la información disponible desde 2004.
+
+El máximo numérico se ordena con valores sin redondear: primero por AUC medio,
+después por peor AUC anual y finalmente por KS medio. La elección de cinco es
+una decisión explícita de producto posterior a observar que la diferencia es
+marginal. No se presenta como empate ni como óptimo universal.
+
+\TFMFigure{fold_model_comparison.png}{AUC medio de XGBoost por número de
+variables y peor AUC anual de las seis familias sobre el contrato de producto.
+Las líneas distinguen el máximo numérico y el tamaño elegido.}
+
+\subsection{Comprobación posterior con cinco, 16 y 18 entradas}
+
+Después de elegir familia, ventana, parámetros y tamaño, el notebook congela esa
+especificación y compara cuatro contratos: las cinco entradas iniciales, las 16
+independientes, las 18 históricas y el prefijo final si es distinto. Todos se
+evalúan sobre los mismos años de selección. Así la diferencia observada procede
+del contrato y no de cambiar a la vez estimador, historia o ajuste. Las dos
+columnas extra del contrato de 18 son una constante y una variable derivada; se
+conservan sólo como diagnóstico y no compiten por el producto.
 
 \begin{center}\small
-\begin{tabular}{p{0.21\linewidth} p{0.43\linewidth} p{0.25\linewidth}}
-\textbf{Riesgo de fuga} & \textbf{Control aplicado} & \textbf{Comprobación}\\ \hline
-Variables posteriores al evento & Sólo cinco campos conocidos en originación & Contrato congelado en \texttt{PRODUCT\_FEATURES}\\
-Etiqueta inmadura & Fecha de disponibilidad y corte estricto de ajuste & Validación de carga y prueba temporal\\
-Uso de cohortes futuras en ajuste & El lector de entrenamiento solicita sólo 2010--2017 & Prueba que envenena 2018--2023\\
-Mezcla de evaluación y holdout & La función acepta 2018--2022 completos o sólo 2023 & Rechazo explícito de otras combinaciones\\
-Reajuste tras ver resultados & Bundle, cortes y hashes se congelan antes del holdout & Identidad verificada al cargar\\
+\begin{tabular}{p{0.34\linewidth} r r r}
+\textbf{Contrato} & \textbf{AUC medio} & \textbf{KS medio} & \textbf{Peor AUC}\\ \hline
+Contrato final de cinco entradas & \MeanAUC{} & \MeanKS{} & \WorstAUC{}\\
+Dieciséis independientes, máximo numérico & \WideAUC{} & \WideKS{} & \WideWorst{}\\
+Histórico de 18 con la misma especificación & \LegacyAUC{} & \LegacyKS{} & \LegacyWorst{}\\
+Diferencia final -- histórico & \DeltaLegacyAUC{} & \DeltaLegacyKS{} & \DeltaLegacyWorst{}\\
 \end{tabular}
 \end{center}
 
-Estos controles demuestran la separación impuesta por el programa. No pueden
-demostrar que una persona nunca hubiera visto resultados futuros durante el
-desarrollo; esa frontera depende además de la disciplina experimental y se
-declara como supuesto de trabajo.
-
-\subsection{Selección del contrato de cinco entradas}
-
-La comparación entre cinco y dieciocho variables aplica una regla pareada: para
-ampliar el contrato se exigían al menos dos folds con mejora de AUC de 0,01 y
-mejora relativa de Brier o log-loss del 5\%, sin deterioro material en ningún
-fold. Las diferencias de AUC del modelo de dieciocho entradas frente al de cinco
-fueron -0,031352, +0,000793 y -0,013689. La ampliación no superó la regla y se
-conservaron las cinco entradas.
-
-\begin{center}\small
-\begin{tabular}{p{0.24\linewidth} p{0.25\linewidth} p{0.40\linewidth}}
-\textbf{Entrada} & \textbf{Qué resume} & \textbf{Motivo de permanencia}\\ \hline
-\texttt{origination\_fico} & Historial crediticio resumido & Mayor aportación en ablación y gradiente descriptivo más claro\\
-\texttt{original\_dti} & Deuda respecto a ingresos & Señal incremental y ausencia informativa tratada explícitamente\\
-\texttt{original\_cltv} & Apalancamiento sobre la garantía & Señal fuerte en el tramo alto y evita duplicar LTV\\
-\texttt{original\_interest\_rate} & Condiciones originales del préstamo & Mejora probabilística histórica con un campo numérico disponible\\
-\texttt{number\_of\_borrowers} & Estructura conjunta del préstamo & Aportación estable y contrato sencillo de explicar\\
-\end{tabular}
-\end{center}
-
-La ablación refuerza que FICO aporta la mayor señal: al retirarlo, el AUC macro
-baja de 0,815065 a 0,747310. Al retirar por separado las demás variables, el AUC
-queda entre 0,796718 y 0,807096. Esto mide asociación predictiva agregada, no
-causalidad. La selección de variables y la regresión logística se apoyan en los
-materiales docentes correspondientes \cite{seleccion,logistica}.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth,trim=0 18pt 0 0,clip]{figures/fold_model_comparison.png}
-\caption{Comparación temporal de contratos y familias durante la selección.}
-\end{figure}
-
-Las trece entradas descartadas se agrupan por una razón defendible. LTV y los
-campos de seguro hipotecario duplicaban en parte la información de CLTV; plazo,
-tipo de amortización, número de unidades y bandera de alto saldo tenían poca
-variación; finalidad, ocupación, tipo y estado del inmueble añadían categorías,
-tratamiento de desconocidos y riesgo territorial sin una mejora estable; y el
-saldo original introducía tamaño monetario sin ser necesario para estimar esta
-PD. Las variables macroeconómicas exigían otra fuente, fecha, actualización y
-una narrativa causal que no pertenece al producto mínimo. El descarte no afirma
-que esas variables nunca puedan aportar señal, sino que no superaron la puerta
-definida para justificar un contrato más complejo.
-
-La evidencia de selección 5 frente a 18 y la comparación con HGB se conserva
-como resultado histórico congelado en la memoria y en sus figuras. El entregable
-ejecutable se simplificó después al producto final de cinco variables: ya no
-incluye el compacto ancho ni los programas de aquella experimentación. Por ello
-la predicción final sí es reproducible, mientras que esa fase comparativa no es
-recalculable desde el repositorio reducido. Explicitarlo evita presentar como
-reproducible una evidencia que hoy sólo es auditable en el documento.
+Frente al producto de cinco entradas, el contrato de 16 mejora AUC media
+\DeltaFiveAUC{}, KS medio \DeltaFiveKS{} y peor AUC anual
+\DeltaFiveWorst{}. Gana en tres de los cuatro años de selección y pierde en 2021
+por 0,002765 de AUC. No se ha realizado una prueba de significación: se observan
+diferencias pequeñas, no un salto de rendimiento, y se decide que no compensan
+solicitar once campos adicionales en la demostración. Por ello se
+distingue el máximo numérico de la decisión de producto. El comparador
+de 18 no compite por el producto: una mejora causada por duplicar una señal no
+sería evidencia de información nueva. La conclusión se limita al protocolo
+probado y no afirma que una variable descartada carezca de valor en otro target
+o cartera.
 
 \clearpage
 \section{Modelos predictivos}
 
-\subsection{Regresión logística implementada}
+\subsection{Evolución de la decisión: de la primera logística a XGBoost}
 
-La familia seleccionada modela el log-odds del evento como una combinación
-lineal de las entradas transformadas. Si $\widetilde{x}_{ik}$ representa cada
-columna tras imputación, indicadores de ausencia y estandarización, el estimador
-base calcula:
+La primera versión operativa de PD24 no partió de XGBoost. Se construyó una
+regresión logística con las cinco entradas que hoy conserva el formulario:
+FICO, DTI, CLTV, tipo de interés y número de prestatarios. La logística era un
+punto de partida razonable porque ofrecía un pipeline corto, coeficientes
+explicables y una implementación directa con los contenidos del máster. En el
+protocolo de aquel momento obtuvo AUC macro 0,815065 frente a 0,800760 de un
+challenger HistGradientBoosting (HGB, distinto del Gradient Boosting clásico
+comparado en la revisión); por ello se eligió la alternativa lineal.
+Aquella selección usaba tres folds con prueba en 2015--2017. La primera entrega
+final se ajustaba con 2010--2015, calibraba con 2016--2017 y observaba 2018--2023
+sin reajustar el estimador. Sus cifras se conservan como antecedente documental,
+pero el notebook final no las recalcula ni las usa para elegir el producto actual.
 
-\[
-\eta_i=\beta_0+\sum_{k=1}^{K}\beta_k\widetilde{x}_{ik},
-\qquad
-p_i^{\mathrm{raw}}=\frac{1}{1+\exp(-\eta_i)}.
-\]
+Esa primera elección demostró que era posible entregar un producto, pero dejaba
+abiertas varias preguntas. El contrato de cinco campos se había contrastado sólo
+frente a un bloque histórico de 18 y la comparación de familias se limitaba a
+dos candidatos. Además, aunque 2020 no seleccionaba ni reajustaba el primer
+modelo, formaba parte del bloque general de resultados 2018--2022 y su carácter
+excepcional pedía una función experimental inequívoca. La revisión mantuvo esa
+exclusión y la formalizó como estrés; no la presenta como una decisión nueva. La
+calibración logística
+mostró en 2023 un intercepto de -0,654081, fuera de la guarda entonces declarada.
+Esto no anulaba su capacidad de ordenación, pero sí impedía defender su salida
+como probabilidad absoluta estable. Ese diagnóstico motivó limitar la
+interpretación del score; no motivó por sí solo el cambio de familia.
 
-El contrato público mantiene cinco valores, pero el diseño interno tiene
-$K=8$: a las cinco variables se añaden indicadores de ausencia para FICO, DTI y
-CLTV, que presentaban algún nulo en desarrollo. Esto evita confundir ``cinco
-entradas'' con ``cinco coeficientes''. La imputación usa la mediana aprendida en
-2010--2015; después, \texttt{StandardScaler} centra y escala las columnas, y
-\texttt{LogisticRegression} usa $C=1$, solver L-BFGS, un máximo de 500
-iteraciones y semilla 20260819.
-
-La clase positiva es poco frecuente. \texttt{class\_weight=balanced} aumenta su
-peso durante el ajuste para que el optimizador no ignore los eventos, pero
-también aleja la salida bruta de la prevalencia observada. Por eso se reserva
-2016--2017 para una calibración sigmoide independiente:
-
-\[
-p_i^{\mathrm{cal}}
-=\sigma\!\left(\alpha+\gamma\,\mathrm{logit}
-  (p_i^{\mathrm{raw}})\right),
-\qquad \sigma(t)=\frac{1}{1+e^{-t}}.
-\]
-
-El calibrador no vuelve a estimar las cinco relaciones principales: aprende
-sólo un intercepto y una pendiente sobre el logit bruto. Esta separación permite
-corregir el nivel probabilístico sin usar los periodos de evaluación. Los
-materiales de regresión logística del máster respaldan el logit, la estimación y
-la lectura de coeficientes \cite{logistica}; la calibración separada es una
-decisión técnica del producto.
-
-\subsection{Challenger histórico HistGradientBoosting}
-
-Los dos candidatos históricos usan el mismo contrato de cinco entradas para que
-la comparación mida la familia y no un cambio de información. HGB utiliza
-imputación por mediana e indicadores, ponderación balanceada, tasa de
-aprendizaje 0,05, 150 iteraciones, 15 hojas, 40 observaciones mínimas por hoja y
-regularización L2 igual a uno. Puede representar interacciones y relaciones no
-lineales sin especificarlas, pero es menos transparente y añade complejidad de
-explicación. Árboles y clasificadores forman parte del temario
-\cite{clasificadores}; este ajuste concreto pertenece al TFM.
+La revisión no sustituyó un modelo por otro basándose en una única métrica. Se
+rehízo la decisión completa sobre el fichero ancho identificado por hash, una
+población común y cortes temporales homogéneos:
 
 \begin{center}\small
-\begin{tabular}{l r r r p{0.27\linewidth}}
-\textbf{Modelo} & \textbf{AUC} & \textbf{Brier} & \textbf{log-loss} & \textbf{Lectura}\\ \hline
-Logística & 0,815065 & 0,005930 & 0,033673 & Mayor discriminación y explicación directa\\
-HGB & 0,800760 & 0,005888 & 0,033005 & Menor error probabilístico, pero no victoria material\\
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{p{0.16\linewidth} p{0.26\linewidth} p{0.31\linewidth} p{0.17\linewidth}}
+\textbf{Fase} & \textbf{Duda que resuelve} & \textbf{Evidencia} & \textbf{Decisión}\\ \hline
+Primera entrega & ¿Puede existir un producto mínimo? & Logística 5: AUC macro 0,815065; HGB: 0,800760, con el protocolo inicial & Servir logística con cinco entradas\\
+Formalización temporal & ¿Qué función cumple 2020? & Ya estaba separado y no reajustaba el modelo & Mantenerlo explícitamente como estrés\\
+Reconciliación & ¿Son 18 señales independientes? & Amortización constante y tipo de seguro derivado; 16 candidatas reales & Comparar 1--16 y dejar 18 como diagnóstico\\
+Ventana y ajuste & ¿Cuánta historia y complejidad usar? & Auditoría común de cuatro ventanas y ajustes XGBoost & Cinco años; 100 árboles; tasa 0,1; profundidad 2\\
+Tamaño & ¿Cinco maximiza la métrica? & 16 mejora sólo +0,001775 de AUC media y +0,004099 en el peor año & Mantener cinco por coste de once campos\\
+Familia final & ¿Sigue ganando la logística? & XGBoost 0,755128; Gradient Boosting 0,753217; logística 0,745813 & Sustituir logística por XGBoost\\
 \end{tabular}
 \end{center}
 
-En los folds de selección, la logística obtiene AUC macro 0,815065, Brier
-0,005930 y log-loss 0,033673; HGB obtiene 0,800760, 0,005888 y 0,033005. HGB
-reduce ligeramente los errores probabilísticos, pero pierde AUC y no supera la
-regla de sustitución. Se elige la regresión logística por discriminación,
-estabilidad operativa, interpretabilidad agregada y parsimonia.
+Las cifras de la primera entrega y las de la revisión no deben restarse entre
+sí: cambian los años de selección, la ventana, la población común y el diseño de
+validación. La comparación válida para cambiar de familia es la última, donde
+los seis estimadores reciben las mismas cinco entradas y exactamente los mismos
+folds. En ese marco XGBoost mejora a la logística en 0,009315 de AUC media,
+0,009200 de KS medio y 0,010678 en el peor AUC anual.
+La comparación es homogénea, aunque condicionada por una ruta de variables, una
+ventana y un ajuste previo guiados con XGBoost; esta limitación se declara en la
+sección 9.2.
 
-Esta comparación se conserva como evidencia histórica congelada. El código
-final ya no contiene HGB ni un selector automático; añadirlos de nuevo sólo para
-mostrar más código contradiría el objetivo de simplificación y no haría el
-producto más defendible.
+Como comprobación posterior, la especificación XGBoost obtiene en 2023 AUC
+0,790355 y KS 0,453622. La primera logística había obtenido 0,773358 y 0,400860,
+pero esa diferencia sólo se informa como evolución del proyecto: no se atribuye
+íntegramente al algoritmo porque también cambiaron el desarrollo y la población.
+2023 ya había sido consultado y no interviene en la decisión final.
 
-\subsection{Calibración y definición de bandas}
+El resultado conserva lo útil de la primera versión y elimina sus supuestos más
+débiles. El formulario sigue siendo pequeño; el preprocesamiento se reduce a
+imputación por mediana; el estimador pasa a XGBoost; 2020 queda visible pero no
+elige; y la salida se denomina score de riesgo, no PD regulatoria ni probabilidad
+contractual calibrada. El cambio de modelo es, por tanto, la consecuencia de una
+comparación homogénea y reproducible, no una preferencia por un algoritmo más
+complejo.
 
-La calibración 2016--2017 contiene 99.920 observaciones y 708 eventos: AUC
-0,798864, PR-AUC 0,032190, KS 0,447723, Brier 0,006965, log-loss 0,037717,
-intercepto -0,170426 y pendiente 0,963033. Los percentiles 50 y 90 del score
-calibrado fijan los cortes de banda en 0,003899719891 y 0,015918064398. Esos
-cortes ordenan la población; no convierten por sí solos el score en una
-probabilidad contractual.
+\subsection{Regresión logística como referencia}
 
-La banda baja corresponde a scores inferiores al P50 de calibración; la media,
-al intervalo $[P50,P90)$; y la alta, a valores iguales o superiores al P90.
-Estos cuantiles permiten resumir el ranking sin fijar un umbral de aceptación.
-Si cambia la distribución del score, las proporciones futuras por banda dejan
-de ser 50/40/10, como ocurre en 2023. El nombre \texttt{risk\_score} representa
-la probabilidad estimada tras calibración, no una escala de puntos ni una
-decisión.
+La regresión logística proporciona una referencia lineal explicada en el
+máster \cite{logistica,scoring}. Tras la preparación de las entradas, modela el
+logaritmo de las oportunidades del evento como una suma de variables:
+
+\[
+\eta_i=\beta_0+\sum_{j=1}^{K}\beta_j x_{ij},
+\qquad
+\widehat{p}_i=\frac{1}{1+\exp(-\eta_i)}.
+\]
+
+Su principal ventaja es la lectura directa de signo y magnitud de los
+coeficientes. Su limitación en este problema es que impone una relación lineal
+en el logit salvo que se construyan transformaciones adicionales. Se conserva
+como referencia porque permite comprobar si las familias basadas en árboles
+producen una mejora observable.
+
+En esta familia, tras imputar mediana o moda y crear las variables dummy, las
+entradas numéricas se estandarizan con los parámetros aprendidos exclusivamente
+en desarrollo. Esta etapa pertenece al pipeline logístico y no al de las
+familias de árboles
+\cite[pp.~71 y 76--77]{spark}.
+
+El ajuste usa las probabilidades directas del estimador y no modifica el peso
+de las clases. El mismo criterio se aplica a las seis familias. Así la diferencia
+entre ellas procede del modelo y no de un tratamiento distinto del evento.
+
+\subsection{Árbol, Random Forest, AdaBoost y Gradient Boosting}
+
+El árbol de decisión divide sucesivamente el espacio de variables mediante
+reglas simples. Random Forest combina múltiples árboles construidos con
+aleatoriedad para reducir la dependencia de un único ajuste. Ambos permiten
+relaciones no lineales sin crear manualmente cada interacción
+\cite{clasificadores}.
+
+AdaBoost combina estimadores débiles de forma secuencial y aumenta la atención
+sobre las observaciones peor resueltas. Gradient Boosting también construye el
+modelo por etapas, añadiendo árboles que reducen el error restante. Estas cuatro
+familias reciben la misma imputación y las mismas dummies que XGBoost, sin
+estandarizar las variables numéricas
+\cite[p.~71]{spark}\cite[p.~24]{ml-semanas}.
+
+\subsection{XGBoost}
+
+XGBoost pertenece a los métodos de \emph{boosting}: construye árboles de forma
+secuencial y cada nuevo árbol intenta reducir el error que permanece tras los
+anteriores. La predicción se obtiene sumando las contribuciones de árboles
+pequeños. Esta familia permite representar relaciones no lineales e
+interacciones sin crear manualmente cada transformación
+\cite{clasificadores}\cite[p.~24]{ml-semanas}.
+
+El TFM usa una configuración deliberadamente pequeña. Sólo se discuten tres
+hiperparámetros:
+
+\begin{itemize}
+\item \texttt{n\_estimators=\XGBTrees}: número de árboles incorporados;
+\item \texttt{learning\_rate=\XGBRate}: contribución de cada árbol;
+\item \texttt{max\_depth=\XGBDepth}: profundidad máxima y, por tanto, límite
+de complejidad de cada árbol.
+\end{itemize}
+
+La criba previa comparó combinaciones cortas y declaradas de estos tres valores
+sobre los mismos folds. El notebook entregable congela el ganador para concentrar
+la reproducción en la decisión de variables, familias y producto. Los valores son
+decisiones experimentales del TFM; no se presentan como una receta del temario.
+
+Las cinco entradas finales son numéricas y sus ausencias se imputan con la
+mediana del desarrollo. Las comparaciones diagnósticas amplias imputan moda y
+crean dummies para sus campos categóricos. No se añaden indicadores de ausencia
+ni se estandarizan las entradas de XGBoost. La salida de
+\texttt{predict\_proba} se utiliza directamente como score PD24. Esto permite
+ordenar casos y construir bandas, pero no demuestra que el valor sea una
+frecuencia estable en otra población, distinción que el propio temario realiza
+entre score normalizado y probabilidad calibrada \cite[p.~78]{spark}.
+
+\subsection{Comparación y elección}
+
+La comparación final no fija de antemano el ganador, pero tampoco es una búsqueda
+completamente agnóstica: la ruta de variables, la ventana y el ajuste previo se
+guiaron con XGBoost. Una vez congeladas esas decisiones, regresión logística,
+árbol, Random Forest, AdaBoost, Gradient Boosting y XGBoost reciben el mismo
+contrato, ventana y años 2018, 2019, 2021 y 2022:
+
+\begin{center}\small
+\begin{tabular}{p{0.14\linewidth} p{0.27\linewidth} p{0.46\linewidth}}
+\textbf{Etapa} & \textbf{Se mantiene fijo} & \textbf{Se compara}\\ \hline
+Auditoría previa & 16 entradas y folds comunes & configuraciones XGBoost y cuatro ventanas\\
+Tamaño & XGBoost, parámetros y ventana congelados & los 16 prefijos de la ruta\\
+Producto & curva completa y coste de entrada & máximo de 16 frente a contrato de cinco\\
+Familia & cinco entradas, ventana y años & seis estimadores con configuración visible\\
+\end{tabular}
+\end{center}
+
+La elección compara los seis estimadores por AUC medio, peor AUC anual y KS
+medio, con los valores completos. La familia seleccionada es
+\SelectedFamily{}. No se presenta como el mejor algoritmo posible en sentido
+universal: es el mejor finalista del protocolo y los periodos declarados dentro
+de las restricciones del máster.
+
+\begin{center}\small
+\begin{tabular}{p{0.27\linewidth} r r r}
+\textbf{Finalista} & \textbf{AUC medio} & \textbf{KS medio} & \textbf{Peor AUC}\\ \hline
+Regresión logística & \LogisticAUC{} & \LogisticKS{} & \LogisticWorst{}\\
+Árbol de decisión & \TreeAUC{} & \TreeKS{} & \TreeWorst{}\\
+Random Forest & \RFAUC{} & \RFKS{} & \RFWorst{}\\
+AdaBoost & \AdaAUC{} & \AdaKS{} & \AdaWorst{}\\
+Gradient Boosting & \GBAUC{} & \GBKS{} & \GBWorst{}\\
+XGBoost & \XGBAUC{} & \XGBKS{} & \XGBWorst{}\\
+\end{tabular}
+\end{center}
+
+XGBoost supera a Gradient Boosting, segundo finalista, en 0,001911 de AUC media,
+0,000657 de KS medio y 0,002527 en el peor AUC anual. La ventaja es pequeña, pero
+aparece en los tres criterios de ordenación y no exige ampliar el contrato de
+cinco entradas. Por
+eso se conserva XGBoost; la tabla permite defender la elección sin afirmar que
+sea el mejor algoritmo fuera de este experimento.
 
 \clearpage
 \section{Resultados, estabilidad e interpretabilidad}
 
-\subsection{Qué mide cada indicador}
+\subsection{Métricas utilizadas}
 
-La evaluación se presenta por cohorte para no ocultar cambios temporales. No
-existe una métrica única que demuestre que el modelo sea bueno para cualquier
-uso: discriminación y calibración responden a preguntas diferentes.
+La evaluación se concentra en dos medidas explicadas en los materiales. El AUC
+es el área bajo la curva ROC y resume la capacidad de ordenar un evento por
+encima de un no evento a través de todos los umbrales. Un valor de 0,5 equivale
+a orden aleatorio y un valor mayor indica mejor discriminación. No expresa por
+sí solo el coste de una decisión ni garantiza que el valor individual del score
+sea una frecuencia absoluta.
+
+El estadístico KS es la máxima distancia entre las distribuciones acumuladas de
+scores de eventos y no eventos. Complementa al AUC con una lectura de
+separación. Tampoco determina un punto de corte operativo. En este TFM ambas
+medidas se calculan por año; además se informa el peor AUC anual para que una
+media favorable no oculte un periodo débil \cite{clasificadores,scoring}.
+
+PR-AUC, Brier y log-loss se conservan como diagnósticos complementarios porque
+el evento es poco frecuente y porque interesa observar la calidad del score. No
+intervienen en la elección de familia, contrato, ventana ni hiperparámetros.
+PR-AUC y Brier no se atribuyen al temario; log-loss aparece también como entropía
+cruzada binaria en \cite[p.~36]{intro-dl}. En la evaluación reutilizada de 2023
+toman los valores PR-AUC \FinalPRAUC{}, Brier \FinalBrier{} y log-loss
+\FinalLogLoss{}.
 
 \begin{center}\small
-\begin{tabular}{p{0.16\linewidth} p{0.38\linewidth} p{0.12\linewidth} p{0.24\linewidth}}
-\textbf{Indicador} & \textbf{Pregunta que responde} & \textbf{Mejor valor} & \textbf{Precaución}\\ \hline
-ROC-AUC & ¿Ordena por encima un evento frente a un no evento? & 1 & No mide nivel probabilístico\\
-PR-AUC & ¿Concentra eventos al priorizar scores altos? & 1 & Depende de la prevalencia\\
-KS & ¿Cuál es la máxima separación entre distribuciones acumuladas? & 1 & Resume un solo punto de separación\\
-Brier & ¿Cuál es el error cuadrático medio de la probabilidad? & 0 & Cambia con la tasa base\\
-log-loss & ¿Penaliza especialmente probabilidades seguras y erróneas? & 0 & Muy sensible a extremos\\
-Intercepto & ¿Hay sesgo medio en el nivel estimado? & 0 & Es diagnóstico, no corrección automática\\
-Pendiente & ¿Es adecuada la dispersión del score? & 1 & $<1$ suele indicar exceso de extremos\\
-PSI & ¿Cambió una distribución respecto a referencia? & 0 & No utiliza el resultado ni mide AUC\\
+\begin{tabular}{p{0.26\linewidth} r p{0.48\linewidth}}
+\textbf{Medida 2023} & \textbf{Valor} & \textbf{Lectura}\\ \hline
+Préstamos / eventos & \FinalN{} / \FinalEvents{} & tamaño de la evaluación reutilizada\\
+Prevalencia & \FinalPrevalence{} & frecuencia observada del evento\\
+Score medio & \FinalMeanScore{} & nivel medio producido por el modelo\\
+AUC & \FinalAUC{} & ordenación global\\
+KS & \FinalKS{} & separación máxima\\
+PR-AUC & \FinalPRAUC{} & diagnóstico con evento infrecuente\\
+Brier & \FinalBrier{} & error cuadrático del score\\
+Log-loss & \FinalLogLoss{} & penalización probabilística\\
 \end{tabular}
 \end{center}
 
-Con clases muy desequilibradas, PR-AUC complementa a ROC-AUC porque se centra
-en la precisión y exhaustividad de la clase minoritaria \cite{saito}. En 2023,
-su referencia ingenua es aproximadamente la prevalencia 0,017152, mientras que
-el modelo alcanza 0,060227. Brier resume el error cuadrático de las
-probabilidades \cite{brier}; log-loss penaliza con más intensidad una
-probabilidad extrema asignada al resultado equivocado. Las guardas de
-intercepto $[-0,5;0,5]$ y pendiente $[0,8;1,2]$ son decisiones explícitas del
-proyecto, no estándares universales.
+\subsection{Resultados por periodo}
 
-\subsection{Comportamiento anual}
+La tabla separa los años utilizados para selección, el estrés 2020 y la
+evaluación reutilizada de 2023. Los valores de 2018, 2019, 2021 y 2022 no deben
+interpretarse como cuatro pruebas independientes después de elegir, porque han
+intervenido en esa elección. Sirven para comparar configuraciones bajo un
+protocolo común. Se congela el contrato, la familia, la ventana y los
+hiperparámetros, pero en cada corte anual se reajusta un estimador con el bloque
+de desarrollo que habría estado disponible entonces. Por tanto, esta tabla es
+un backtest temporal de una misma especificación, no la aplicación retrospectiva
+de un único objeto ya entrenado.
 
 \begin{center}\small
-\begin{tabular}{c r r r r r r r}
- año & AUC & PR-AUC & KS & Brier & log-loss & intercepto & pendiente\\
- 2018 & 0,757634 & 0,080001 & 0,397486 & 0,025633 & 0,119440 & 0,721014 & 0,952667\\
- 2019 & 0,709641 & 0,094060 & 0,313956 & 0,043208 & 0,213835 & 0,529196 & 0,714577\\
- 2020 & 0,772745 & 0,055788 & 0,420509 & 0,015306 & 0,085112 & 1,414921 & 0,956175\\
- 2021 & 0,776731 & 0,031785 & 0,434647 & 0,008522 & 0,048806 & 1,358302 & 1,048064\\
- 2022 & 0,741444 & 0,051156 & 0,364821 & 0,018113 & 0,086674 & -0,761978 & 0,756021\\
- 2023 & 0,773358 & 0,060227 & 0,400860 & 0,017217 & 0,085038 & -0,654081 & 1,054711\\
+\begin{tabular}{l l r r p{0.30\linewidth}}
+\textbf{Año} & \textbf{Papel} & \textbf{AUC} & \textbf{KS} & \textbf{Lectura}\\ \hline
+2018 & selección & \AUCYZero{} & \KSYZero{} & primer periodo de comparación\\
+2019 & selección & \AUCYFirst{} & \KSYFirst{} & periodo anterior a la pandemia\\
+2020 & estrés & \StressAUC{} & \StressKS{} & fuera de la decisión\\
+2021 & selección & \AUCYSecond{} & \KSYSecond{} & cambio de composición temporal\\
+2022 & selección & \AUCYThird{} & \KSYThird{} & periodo reciente de selección\\
+2023 & evaluación reutilizada & \FinalAUC{} & \FinalKS{} & no es un holdout virgen\\
+\hline
+Media de selección & 2018/2019/2021/2022 & \MeanAUC{} & \MeanKS{} & criterios primero y tercero\\
+Peor selección & 2018/2019/2021/2022 & \WorstAUC{} & --- & segundo criterio\\
 \end{tabular}
 \end{center}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth,trim=0 18pt 0 0,clip]{figures/temporal_performance.png}
-\caption{Métricas anuales 2018--2023 del modelo congelado.}
-\end{figure}
+\TFMFigure[0.70\linewidth]{temporal_performance.png}{AUC y KS por corte temporal con la misma
+especificación y un estimador reajustado en cada corte. El año 2020 se muestra
+como estrés y no interviene en la selección.}
 
-La discriminación se mantiene entre 0,709641 y 0,776731 de AUC. El peor ranking
-aparece en 2019 y se recupera en 2020--2021; 2022 vuelve a bajar y 2023 alcanza
-0,773358. Esta lectura muestra capacidad de ordenación, pero no estabilidad de
-nivel. Los interceptos positivos de 2018--2021 indican infraestimación agregada
-de la incidencia, con máximos en 2020 y 2021. El signo se invierte en 2022 y
-2023, cuando el modelo sobreestima. El cambio impide defender una probabilidad
-absoluta estable a lo largo del tiempo.
+Una diferencia entre años es esperable: cambian tipos de interés, mezcla de
+prestatarios, políticas de originación y frecuencia del evento. El análisis no
+atribuye causalidad a esos cambios. Su función es comprobar si la capacidad de
+ordenación desaparece o se mantiene dentro de un rango defendible.
 
-La cohorte 2020 obtiene AUC 0,772745, pero intercepto 1,414921. Se mantiene como
-observación excepcional separada: informa sobre robustez temporal, pero no se
-usa para ajustar el modelo ni se atribuye su comportamiento a COVID, tipos de
-interés u otra causa macroeconómica. Esa causalidad requeriría variables y un
-diseño distinto.
+\subsection{Bandas de riesgo}
 
-\subsection{Holdout 2023, bandas y calibración}
-
-En 2023 hay 49.966 observaciones y 857 eventos. Las bandas baja, media y alta
-contienen 2.681, 14.905 y 32.380 observaciones, con tasas observadas de 0,001119,
-0,002952 y 0,025015. El orden es correcto, pero la concentración de la población
-en la banda alta muestra que los cortes heredados de 2016--2017 han perdido
-representatividad.
+Para facilitar la demostración, el score continuo se agrupa en tres bandas. Los
+cortes corresponden a los percentiles 50 y 90 de un bloque de referencia: baja
+por debajo del primero, media entre ambos y alta por encima del segundo. Las
+bandas son etiquetas relativas a una distribución concreta, no categorías
+regulatorias ni reglas de aceptación.
 
 \begin{center}\small
-\begin{tabular}{l r r r r}
-\textbf{Banda 2023} & \textbf{n} & \textbf{Eventos} & \textbf{Predicción media} & \textbf{Tasa observada}\\ \hline
-Baja & 2.681 & 3 & 0,253\% & 0,112\%\\
-Media & 14.905 & 44 & 0,973\% & 0,295\%\\
-Alta & 32.380 & 810 & 5,194\% & 2,502\%\\
+\begin{tabular}{l p{0.23\linewidth} r r p{0.22\linewidth}}
+\textbf{Banda} & \textbf{Regla relativa} & \textbf{Score medio} & \textbf{Tasa observada} & \textbf{Interpretación}\\ \hline
+Baja & score menor que percentil 50 & \LowBandScore{} & \LowBandRate{} & mitad inferior del score\\
+Media & percentiles 50 a 90 & \MediumBandScore{} & \MediumBandRate{} & riesgo relativo intermedio\\
+Alta & score desde percentil 90 & \HighBandScore{} & \HighBandRate{} & decil superior del score\\
 \end{tabular}
 \end{center}
 
-Las tres tasas observadas crecen en el orden esperado, por lo que la banda es
-útil como resumen de riesgo relativo. Sin embargo, la predicción media supera
-la incidencia observada en las tres. Además, el 64,8\% de la población cae en
-la banda alta, lejos del 10\% que esa banda representaba al definirse en
-calibración. El producto conserva ranking, pero sus cortes ya no describen
-segmentos de tamaño estable.
+\TFMFigure{bands_interpretability.png}{Score medio, tasa observada por banda e
+importancia relativa de las variables del modelo seleccionado.}
 
-En 2023, los PSI son: FICO 0,029366; DTI 2,436114; CLTV 0,096963; tipo
-7,027979; prestatarios 0; y score 2,281915. PSI sólo detecta cambio de
-distribución: no mide AUC ni demuestra deterioro causal. La pendiente 1,054711
-cumple la guarda, pero el intercepto -0,654081 queda fuera de [-0,5; 0,5]. La
-regla conjunta declara el modelo no compatible con una afirmación de
-probabilidad absoluta estable, aunque conserve discriminación y orden de bandas.
+El score medio es el promedio de la salida del clasificador en cada banda; la
+tasa observada es la proporción de préstamos con \texttt{default\_24m}=1. Que
+ambas aumenten de baja a media y de media a alta muestra ordenación. Su proximidad
+es sólo una comprobación descriptiva en esa muestra, no acredita calibración en
+otra población o periodo. Si la tasa deja de crecer en una cohorte posterior,
+las bandas dejan de ser útiles aunque el servicio siga respondiendo técnicamente.
+Los cortes se guardan en el bundle para que API e interfaz apliquen exactamente
+la misma regla.
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth,trim=0 18pt 0 0,clip]{figures/calibration_bands_interpretability.png}
-\caption{Bandas, calibración e interpretación agregada del modelo final.}
-\end{figure}
+\subsection{Interpretabilidad esencial}
 
-Los mayores PSI corresponden al tipo de interés (7,027979), DTI (2,436114) y
-score (2,281915); FICO y CLTV cambian mucho menos. La fuerte reducción de DTI
-ausente entre desarrollo y 2023 forma parte de esa señal. El PSI cero de número
-de prestatarios no demuestra igualdad: como desarrollo sólo contiene valores
-uno y dos, la discretización actual agrupa todos los no ausentes y no detecta
-las nuevas categorías tres a cinco. El rango de la API, y no ese PSI, es la
-guarda que impide introducir valores sin soporte de entrenamiento.
+XGBoost asigna en el ajuste de 2023 una importancia relativa de 0,464 a FICO,
+0,214 al número de prestatarios, 0,138 a CLTV, 0,094 a DTI y 0,090 al tipo de
+interés. Es una medida interna del estimador: ayuda a describir qué variables
+utiliza, pero no es causal, no conserva el signo del efecto y no explica una
+predicción individual.
 
-\subsection{Interpretabilidad agregada}
-
-Los coeficientes estandarizados son FICO -0,774665, DTI 0,368087, CLTV
-0,517045, tipo 0,470748 y número de prestatarios -0,498650. Sus signos son
-coherentes con asociaciones agregadas del conjunto estudiado, pero no explican
-causas ni justifican decisiones individuales. Entre los indicadores de
-ausencia, DTI tiene coeficiente 0,410897, mientras que FICO y CLTV quedan cerca
-de cero. Esto confirma que el patrón de falta de DTI contiene información en el
-periodo de desarrollo y exige cautela ante el cambio temporal de completitud.
-
-Los coeficientes están expresados sobre columnas estandarizadas, de modo que su
-magnitud permite comparar influencia dentro del pipeline, no traducir una unidad
-original directamente a puntos de score. Tampoco son explicaciones locales: la
-respuesta de un préstamo concreto combina las ocho columnas internas y la
-calibración posterior.
-
-No se reporta rendimiento ni
-deriva cuantitativa para 2024--2026 porque esos datos no forman parte del input
-final reproducible. Su incorporación queda como línea futura cuando exista un
-extracto retenido, documentado y con madurez suficiente.
+No se incorporan explicadores individuales adicionales. Para el alcance mínimo
+basta con la ruta de selección, la importancia global, el comportamiento por
+periodo y las bandas. Una explicación individual con uso decisorio necesitaría
+comprobaciones específicas y una gobernanza que no forman parte de esta entrega.
 
 \clearpage
 \section{Arquitectura y productivización}
 
-\subsection{Mapa mínimo de responsabilidades}
+\subsection{Flujo del producto}
 
-La arquitectura conserva pocos módulos y una responsabilidad principal por
-archivo. No existe un framework propio ni una capa de configuración general: el
-contrato temporal y las cinco entradas están congelados en el código para que el
-producto entregado coincida con el experimento defendido.
-
-\begin{center}\small
-\begin{tabular}{p{0.27\linewidth} p{0.62\linewidth}}
-\textbf{Componente} & \textbf{Responsabilidad}\\ \hline
-\path{src/data_access.py} & Leer Zstandard por bloques; verificar hash, cabecera, años, trimestres, etiqueta, madurez y rangos\\
-\path{src/integrity.py} & Calcular SHA-256 del fichero local\\
-\path{src/pd_model.py} & Definir cinco entradas, pipeline logístico y calibrador sigmoide\\
-\path{src/metrics.py} & Calcular métricas, bandas, tablas de calibración y PSI\\
-\path{src/product.py} & Imponer periodos, entrenar, construir/cargar el bundle, evaluar y centralizar scoring\\
-\path{src/api.py} & Exponer y validar \texttt{/health} y \texttt{/predict}\\
-\path{scripts/train_model.py} & Punto de entrada de entrenamiento y guardado\\
-\path{scripts/serve_model.py} & Punto de entrada de la API Flask local\\
-\path{scripts/serve_demo.py} & Formulario local Gradio con cinco entradas y tres salidas\\
-\end{tabular}
-\end{center}
-
-\subsection{Del compacto a una predicción}
-
-El producto mínimo adopta el flujo:
+La arquitectura se reduce a una cadena única:
 
 \begin{center}
-compacto local $\rightarrow$ entrenamiento $\rightarrow$ bundle versionado
-$\rightarrow$ scoring común $\rightarrow$ API JSON o interfaz Gradio
-$\rightarrow$ PD y banda.
+\texttt{input local} $\rightarrow$ \texttt{notebook} $\rightarrow$
+\texttt{entrenamiento} $\rightarrow$ \texttt{bundle} $\rightarrow$
+\texttt{scoring} $\rightarrow$ \texttt{API / interfaz}.
 \end{center}
 
-\textbf{Entrenar.} El comando calcula primero el hash del compacto, exige la
-cabecera exacta y carga sólo 2010--2017. Tras el corte de madurez, separa
-desarrollo y calibración, ajusta el pipeline, fija P50/P90 y crea referencias de
-distribución.
+El notebook conserva la investigación, produce las tablas y figuras y ejecuta
+la demostración de extremo a extremo reutilizando el runtime. Este no repite la
+selección: recibe el contrato, los parámetros y los años ya congelados, entrena,
+guarda y carga el resultado. API y formulario llaman a la
+misma función de scoring. Esta separación evita dos modelos o dos validaciones
+de entrada que puedan divergir.
 
-\textbf{Guardar.} El artefacto se escribe como
-\texttt{pd24-model.joblib.partial} y sólo después se reemplaza el destino con
-\texttt{os.replace}. Un fallo previo conserva el bundle anterior y elimina el
-parcial. Es un reemplazo atómico en el mismo directorio; no se presenta como
-transacción duradera ni como solución para escritores concurrentes.
+\TFMFigure{product_api_contract.png}{Arquitectura mínima y contrato público del
+producto PD24.}
 
-\textbf{Cargar y validar.} Antes de servir se comprueban identidad, familia,
-orden de variables, esquema, periodos, cortes, referencias, métricas y hashes.
-La predicción construye un \texttt{DataFrame} en el orden congelado, ejecuta
-\texttt{predict\_proba} y asigna la banda con los cortes guardados.
-La función \texttt{score\_product} concentra estos pasos y es reutilizada por
-la API y el formulario, evitando dos implementaciones del mismo contrato.
-
-\subsection{Contenido e integridad del bundle}
-
-El bundle \texttt{five-variable-pd-2} conserva pipeline, calibrador, orden y
-rangos de variables, cortes, versión y hashes. Sus 18 claves se agrupan así:
+\subsection{Responsabilidades del código}
 
 \begin{center}\small
-\begin{tabular}{p{0.23\linewidth} p{0.66\linewidth}}
-\textbf{Grupo} & \textbf{Contenido congelado}\\ \hline
-Identidad & Versión de bundle, versión interna, familia y objeto de modelo\\
-Contrato & Cinco variables en orden, rangos, target, horizonte y evento\\
-Temporalidad & Años de desarrollo/calibración y corte de madurez\\
-Calibración & Métricas 2016--2017 y cortes P50/P90\\
-Monitorización & Bins y distribuciones de referencia de variables y score\\
-Integridad & SHA-256 del compacto y de nueve ficheros de implementación\\
+\begin{tabular}{p{0.37\linewidth} p{0.52\linewidth}}
+\textbf{Fichero} & \textbf{Responsabilidad}\\ \hline
+\path{notebooks/01_seleccion_modelo.ipynb} & Evidencia, selección, figuras y demostración ejecutable\\
+\path{src/data_access.py} & Verificar y leer el input local\\
+\path{src/pd_model.py} & Definir contrato, preprocesamiento y familia elegida\\
+\path{src/product.py} & Entrenar, guardar, cargar, validar y puntuar\\
+\path{src/api.py} & Exponer salud y predicción JSON\\
+\path{scripts/train_model.py} & Crear el bundle local\\
+\path{scripts/serve_model.py} & Arrancar la API Flask\\
+\path{scripts/serve_demo.py} & Arrancar el formulario Gradio\\
 \end{tabular}
 \end{center}
 
-\par\noindent{\scriptsize SHA-256 del input:
-\texttt{33f69db7662dee9265bc28cb6d01b4099d6727641c1d6e4a579930df5149fb91}}\par
-\par\noindent{\scriptsize SHA-256 de la implementación:
-\texttt{dc655e1a8ed5e5e9289e68b293934dc7ec67d172fe1e973f1d5ea11ebb4808e5}}\par
+No existe código de descarga, un servicio de características, una base de datos
+ni un orquestador. Ninguno es necesario para entrenar desde el fichero local o
+insertar un préstamo. La ausencia de esos componentes es una delimitación del
+producto, no una funcionalidad pendiente disfrazada.
 
-El hash de implementación cubre los seis módulos funcionales y tres scripts,
-normalizando finales de línea. No es una firma digital y no incluye pruebas,
-\texttt{requirements.lock}, versión de Python ni el propio bundle. Además,
-\texttt{joblib.load} deserializa antes de validar el contenido: sólo deben
-cargarse artefactos locales generados por el proyecto. Las comprobaciones
-posteriores no convierten un fichero arbitrario en seguro.
+\subsection{Bundle y trazabilidad}
 
-\subsection{API e interfaz local en la frontera del producto}
+El bundle versión \BundleVersion{}, con identidad \ModelVersion{}, contiene el pipeline, la
+familia, el orden de variables, el esquema de entrada, target, horizonte,
+definición del evento, periodos, cortes de banda y hash del input. No guarda el
+dataset ni duplica tablas del notebook.
 
-La API Flask expone \texttt{GET /health} y \texttt{POST /predict} en
-\texttt{127.0.0.1:5000}. El diseño usa HTTP, REST y JSON del módulo de
-productivización \cite{productivizacion}. Como acceso visual, una
-\texttt{gr.Interface} recibe las cinco variables numéricas y devuelve PD en
-porcentaje, banda y advertencia académica. Esta forma de demostración mediante
-componentes de entrada y salida aparece en los materiales del máster
-\cite{gradio}.
+El producto congela exactamente el modelo que se evaluó en 2023: el desarrollo
+abarca \DevelopmentPeriod{}, el bloque \BandPeriod{} fija los cortes de banda y
+2020--2022 forma el embargo. No existe un reajuste posterior con 2019,
+2021 o 2022 ni se calculan las bandas con 2023. Así, las métricas de 2023 y el
+bundle describen la misma especificación. Como 2023 ya fue consultado, la prueba
+honesta siguiente requiere una cohorte posterior madura y no observada.
 
-Ambas vías llaman a la misma función \texttt{score\_product}; así, el orden de
-variables, los rangos, la probabilidad y los cortes no se duplican. La interfaz
-se limita a Python y Gradio: no incorpora HTML, CSS o JavaScript escritos a
-mano, persistencia, base de datos, autenticación, contenedores, nube u
-observabilidad.
+Al cargar el bundle, el código exige la versión, familia, variables, esquema,
+definición y hash esperados. La escritura usa un fichero temporal y una
+sustitución atómica para no dejar un artefacto parcial. \texttt{joblib} sólo debe
+cargar bundles generados por el propio proyecto, ya que no es un formato seguro
+para objetos de origen desconocido. Se utiliza como detalle de serialización del
+software y no se presenta como una técnica impartida en el máster.
 
-No existe una ruta \texttt{/}; por eso abrir \texttt{http://127.0.0.1:5000/}
-en el navegador devuelve 404 de forma esperada. La comprobación operativa se
-realiza en \texttt{/health} y la predicción mediante un \texttt{POST} JSON a
-\texttt{/predict}. El formulario visual se abre por separado en
-\texttt{http://127.0.0.1:7860/}. Flask y Gradio usan servidores de desarrollo,
-suficientes para la demostración local pero no presentados como despliegue
-productivo real.
+\subsection{Contrato, API e interfaz}
+
+El contrato final solicita exactamente \SelectedK{} entradas numéricas:
+\SelectedFeatures{}. El esquema conserva el mínimo y máximo observado de cada
+campo en desarrollo. La frontera de confianza rechaza claves
+ausentes o adicionales, booleanos, tipos incompatibles, nulos, infinito, NaN y
+valores fuera del dominio de desarrollo.
+
+La API ofrece \texttt{GET /health} y \texttt{POST /predict}. Flask se limita a
+\texttt{127.0.0.1}; no almacena peticiones y no expone detalles internos cuando
+se produce un error. El formulario Gradio presenta controles numéricos o
+desplegables según el esquema y devuelve el score crudo entre cero y uno, la
+banda y la advertencia académica. Ambos adaptadores delegan en
+\texttt{score\_product}. La elección de Flask y Gradio se traza respectivamente
+a \cite[pp.~98, 103--108 y 114]{productivizacion} y
+\cite[p.~17]{ml-semanas}.
+
+La ruta raíz de Flask devuelve 404 de forma intencionada porque no es una página
+web. La salud está en \texttt{/health}; la interfaz se sirve por separado en el
+puerto 7860. Esta distinción evita confundir la API JSON con el formulario.
 
 \clearpage
 \section{Demostración y validación técnica}
 
-\subsection{Contrato compartido y respuesta}
+\subsection{Ejemplo de predicción}
 
-El scoring acepta exactamente cinco números finitos y valida los rangos
-congelados. La API rechaza claves faltantes o adicionales; su límite de cuerpo
-es 4 KiB y los errores de entrada devuelven HTTP 400 sin reflejar contenido
-potencialmente malicioso. El contrato público usa la versión
-\texttt{pd24-v1}; la identidad interna del bundle es
-\texttt{five-variable-pd-2}. Son niveles distintos de versionado, no modelos
-diferentes.
+La petición contiene exactamente los nombres del contrato:
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=\linewidth,trim=0 18pt 0 0,clip]{figures/product_api_contract.png}
-\caption{Flujo local y contrato JSON de la API.}
-\end{figure}
+{\scriptsize
+\begin{verbatim}
+POST http://127.0.0.1:5000/predict
+Content-Type: application/json
 
-\noindent\begin{minipage}{\linewidth}
-Una petición válida y su respuesta real son:
-{\scriptsize\begin{verbatim}
 {
-  "number_of_borrowers": 2, "original_interest_rate": 4.5,
-  "origination_fico": 700, "original_dti": 30, "original_cltv": 80
+  "origination_fico": 700,
+  "original_dti": 30,
+  "original_cltv": 80,
+  "original_interest_rate": 4.5,
+  "number_of_borrowers": 2
 }
+\end{verbatim}}
+
+Una respuesta válida mantiene una estructura estable:
+
+{\scriptsize
+\begin{verbatim}
 {
-  "horizon_months": 24, "model_version": "pd24-v1",
-  "risk_band": "medium", "risk_score": 0.005874119344598262,
+  "risk_score": 0.003416217165067792,
+  "risk_band": "medium",
+  "model_version": "pd24-xgboost-5v-7",
+  "horizon_months": 24,
   "warning": "Academic risk estimate; not a credit decision."
 }
 \end{verbatim}}
-\end{minipage}
 
-La respuesta devuelve una estimación numérica, una banda derivada de P50/P90,
-el horizonte, la versión pública y una advertencia académica. No devuelve una
-decisión, un motivo de rechazo ni una cantidad monetaria. En el ejemplo, el
-score 0,005874 cae entre los cortes 0,003900 y 0,015918, por lo que la banda es
-media.
+Con el bundle definitivo, el ejemplo devuelve score \ExampleScore{} y banda
+\ExampleBand{}. Esos
+valores proceden del mismo artefacto evaluado en 2023. El ejemplo
+demuestra el recorrido de extremo a extremo, no la adecuación del préstamo para
+una concesión.
 
-El mismo préstamo puede introducirse en el formulario local. El resultado
-visible es \texttt{0,5874\%}, banda \texttt{Media} y el mensaje
-\texttt{Estimación académica; no es una decisión de crédito}. La diferencia de
-escala es sólo de presentación: la API devuelve la probabilidad entre cero y
-uno y la interfaz la muestra como porcentaje.
-
-\subsection{Matriz de validación}
+\subsection{Validaciones automáticas}
 
 \begin{center}\small
-\begin{tabular}{p{0.24\linewidth} p{0.43\linewidth} p{0.20\linewidth}}
-\textbf{Control} & \textbf{Regla aplicada} & \textbf{Resultado}\\ \hline
-Tipo de contenido & MIME exactamente \texttt{application/json} & HTTP 400 genérico\\
-Tamaño & Cuerpo máximo de 4.096 bytes & HTTP 400 genérico\\
-JSON & Objeto válido, profundidad manejable y claves no duplicadas & HTTP 400 genérico\\
-Campos & Conjunto exacto de cinco nombres, sin extras & HTTP 400 genérico\\
-Tipos & Sólo \texttt{int}/\texttt{float}; no booleanos, texto, nulos o infinitos & HTTP 400 genérico\\
-Rangos & Mínimo y máximo vistos en desarrollo para cada campo & HTTP 400 genérico\\
-Modelo & Probabilidad finita dentro de $[0,1]$ & HTTP 500 si falla\\
-Petición válida & Predicción y asignación de banda & HTTP 200 JSON\\
-Formulario local & Cinco componentes numéricos con los mismos rangos & PD, banda y advertencia\\
+\begin{tabular}{p{0.29\linewidth} p{0.58\linewidth}}
+\textbf{Control} & \textbf{Comportamiento esperado}\\ \hline
+Fichero & Rechazar hash, cabecera, target o fechas incompatibles\\
+Contrato & Rechazar variables ausentes o adicionales\\
+Tipo & Rechazar texto, booleanos, nulos y no finitos\\
+Rango & Rechazar valores fuera del desarrollo\\
+Bundle & Rechazar versión, familia o esquema incompatibles\\
+Modelo & Exigir score finito entre cero y uno\\
+API & Ocultar errores internos y conservar formato de salida\\
 \end{tabular}
 \end{center}
 
-Los errores de cliente no reflejan el contenido recibido y los fallos internos
-no exponen excepciones. Esta frontera es deliberadamente pequeña. No cubre
-autenticación, TLS, concurrencia, rate limiting ni registro operativo porque la
-API y la interfaz sólo escuchan en loopback para una demostración local. El
-formulario tampoco persiste las entradas.
+Las pruebas usan \texttt{unittest}, incluido en Python. Cubren el lector, el
+pipeline, el bundle, el scoring, la API y la interfaz. La validación de entrada
+no se simplifica porque es la frontera donde llegan valores introducidos por el
+usuario. No se prueban concurrencia, autenticación, TLS ni carga: el servicio es
+local y monousuario.
 
-\subsection{Pruebas automáticas y reproducibilidad}
+\subsection{Reproducción}
 
-Treinta y cuatro pruebas automáticas cubren lectura, esquema, madurez temporal,
-modelo, determinismo, bundle, hashes, API e interfaz. Con el compacto local se
-pueden repetir el entrenamiento, las métricas 2018--2023 y la demostración. No
-se puede reconstruir desde el repositorio reducido la etiqueta mensual original
-ni la selección histórica 5 frente a 18/HGB; esa frontera se documenta para que
-la reproducibilidad declarada coincida con lo realmente entregado.
+Los comandos mínimos desde la raíz son:
 
-\begin{center}\small
-\begin{tabular}{l r p{0.56\linewidth}}
-\textbf{Fichero} & \textbf{Tests} & \textbf{Cobertura principal}\\ \hline
-\path{test_api.py} & 9 & Rutas, contrato, bandas, entradas hostiles y errores internos\\
-\path{test_data_access.py} & 6 & Hash, cabecera, target, madurez, cohortes, topes y rangos\\
-\path{test_metrics.py} & 6 & Métricas, clase única, bandas, PSI, resumen y regla histórica\\
-\path{test_pd_model.py} & 1 & Cinco variables congeladas y probabilidades válidas\\
-\path{test_product.py} & 8 & Particiones, fuga, bundle, atomicidad, evaluación y determinismo\\
-\path{test_demo.py} & 4 & Predicción visual, valores inválidos, fallos y construcción de la interfaz\\
-\textbf{Total} & \textbf{34} & \textbf{Suite completa con} \texttt{unittest}\\
-\end{tabular}
-\end{center}
+{\scriptsize
+\begin{verbatim}
+python -m scripts.train_model --data freddie-pd24-wide.csv.zst --output models\pd24-model.joblib
+python -m unittest discover -s tests -v
+python -m scripts.serve_demo --model models\pd24-model.joblib --port 7860
+python -m scripts.serve_model --model models\pd24-model.joblib --port 5000
+\end{verbatim}}
 
-Las pruebas de entrenamiento, API e interfaz usan fixtures sintéticos y
-ejercitan las funciones directamente. No son pruebas de carga, socket HTTP real, argumentos
-de consola, concurrencia o seguridad de infraestructura. El artefacto real se
-verifica adicionalmente mediante sus hashes y la repetición local de
-entrenamiento/evaluación.
+El notebook \path{notebooks/01_seleccion_modelo.ipynb} debe ejecutarse de arriba
+abajo sin editar resultados intermedios. Valida el hash, construye los folds,
+revalida las ventanas de 1, 3 y 5 años y la expansiva, reutiliza la ruta previa
+declarada, compara los 16 tamaños y las seis familias, evalúa periodos y genera
+figuras. Finalmente reutiliza \path{src/} para entrenar, guardar y cargar el
+bundle, puntuar un préstamo, probar la API con entrada válida e inválida,
+construir Gradio y ejecutar \texttt{unittest}. Las dependencias se fijan en
+\path{requirements.lock}.
 
-La reproducción mínima necesita Python 3.12.13, las versiones fijadas en
-\texttt{requirements.lock}, el compacto con el SHA-256 esperado y tres pasos:
-entrenar el bundle, ejecutar la suite y arrancar la interfaz o la API. El anexo D conserva
-los comandos exactos; los anexos E y F muestran los fragmentos esenciales y el
-catálogo de pruebas sin duplicar todo el repositorio.
+La reproducibilidad tiene dos niveles. El experimento reproduce la decisión de
+modelo desde el compacto; el producto reproduce una predicción desde el bundle.
+No se afirma reproducibilidad desde los ficheros mensuales originales porque el
+código que crea el compacto se ha eliminado del alcance final.
 
 \clearpage
 \section{Conclusiones, limitaciones y líneas futuras}
 
-\subsection{Respuesta a la pregunta de investigación}
+\subsection{Conclusiones}
 
-Sí: dentro de la muestra estudiada, cinco variables disponibles en originación
-conservan capacidad suficiente para ordenar el riesgo a 24 meses y pueden
-entregarse como un producto local reproducible. La regresión logística supera a
-HGB en AUC macro durante la comparación histórica, alcanza AUC 0,773358 y KS
-0,400860 en 2023, y produce bandas con tasas observadas crecientes. El pipeline,
-el bundle, la API, la interfaz Gradio y treinta y cuatro pruebas completan la
-demostración de software.
+El TFM convierte una investigación amplia en un producto predictivo concreto.
+La pregunta, el target y el horizonte son únicos; los datos se leen desde un
+compacto identificado; las comparaciones respetan el tiempo; y la salida puede
+obtenerse desde código, API o interfaz.
 
-La respuesta tiene una condición decisiva: el intercepto de calibración 2023 es
--0,654081 y las probabilidades medias superan las incidencias observadas en las
-tres bandas. Por tanto, el resultado demuestra ranking y productivización, no
-una PD absoluta estable ni aptitud para decidir una concesión.
+La decisión separa sus etapas. La ruta secuencial ordena variables con la prueba
+de 2017; la auditoría previa fija una ventana de \SelectedWindow{} años y una
+configuración XGBoost; y la curva de prefijos compara el tamaño del contrato. Los
+16 campos son el máximo literal, pero sólo suman \DeltaFiveAUC{} de AUC medio y
+\DeltaFiveWorst{} en el peor año. El producto conserva \SelectedK{} por
+parsimonia y, sobre ese contrato ya congelado, la comparación de seis familias
+elige \SelectedFamily{}.
 
-\begin{center}\small
-\begin{tabular}{p{0.28\linewidth} p{0.28\linewidth} p{0.33\linewidth}}
-\textbf{Demostrado} & \textbf{No demostrado} & \textbf{Mejora necesaria}\\ \hline
-Señal predictiva de cinco entradas & Generalización a solicitantes rechazados & Validación en población objetivo\\
-Ordenación temporal en 2023 & Probabilidad absoluta estable & Recalibración en cohorte posterior\\
-Bandas con orden observado & Tamaño estable de las bandas & Revisar cortes P50/P90\\
-Entrenamiento y evaluación reproducibles & Reconstrucción mensual de etiqueta & Manifiesto o proceso de origen separado\\
-API e interfaz locales validadas & Servicio productivo multiusuario & Infraestructura sólo si surge ese uso\\
-\end{tabular}
-\end{center}
+Una vez tomada la decisión, las cinco entradas, las 16 independientes y las 18
+históricas se comparan con la familia, ventana,
+parámetros y periodos ganadores. El contrato de 18 permanece sólo como diagnóstico
+porque añade una constante y una variable derivada; no compite por el producto.
+El modelo seleccionado acredita AUC \MeanAUC{}, KS \MeanKS{} y peor AUC
+\WorstAUC{} en selección.
+
+Las familias comparadas son defendibles dentro del temario; si la ganadora es
+XGBoost, su rejilla se limita a número de árboles, tasa de aprendizaje y
+profundidad. El producto no necesita una plataforma adicional para demostrar el
+resultado: un pipeline, un bundle, una función de scoring y dos adaptadores
+pequeños cubren el caso de uso.
+
+El valor demostrado es capacidad de ordenación sobre la población y periodos
+estudiados. La salida no debe usarse para aprobar o denegar, ni interpretarse
+como pérdida económica. Esta conclusión no disminuye el trabajo: delimita con
+precisión qué evidencia aporta.
 
 \subsection{Limitaciones}
 
-Las limitaciones principales son la muestra académica, la ausencia del proceso
-crudo de construcción de etiqueta en el entregable, la evidencia histórica no
-recalculable de selección, el cambio temporal de distribuciones y el carácter
-local de la API y de la interfaz. Tampoco se evalúan sesgo individual, causalidad o desempeño en
-otras carteras. Usos excluidos: aprobación o denegación, pricing, provisiones,
-capital regulatorio y decisiones automáticas.
-
-La tasa de evento varía mucho por cohorte y desarrollo pertenece a un periodo de
-baja incidencia. DTI cambia de completitud, aparecen valores de número de
-prestatarios fuera del soporte de entrenamiento y el PSI actual de esa variable
-no detecta nuevas categorías. También existen filas indistinguibles sin
-identificador cuya naturaleza no puede determinarse. Estas observaciones no
-anulan el ranking publicado, pero delimitan la transportabilidad y la lectura de
-estabilidad.
+\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
+\item La selección secuencial no explora todos los subconjuntos de 16 variables
+ni todas las configuraciones concebibles. La ruta, la ventana y el ajuste fueron
+guiados con XGBoost antes de comparar familias; por ello la prueba final es
+homogénea, pero no completamente neutral respecto del estimador. XGBoost es el
+mejor de seis finalistas sobre el contrato de cinco; no se afirma que cinco sea
+el máximo numérico.
+\item Los años 2018, 2019, 2021 y 2022 participan en la selección; 2020 se usa
+como estrés retrospectivo y 2023 había sido observado. Ninguno debe presentarse
+como una prueba prospectiva virgen posterior a toda decisión.
+\item El score directo del clasificador ordena préstamos, pero su nivel absoluto puede
+cambiar cuando cambia la población.
+\item El muestreo por trimestre altera la mezcla respecto de la fuente completa
+y sólo se observan préstamos originados, no solicitudes rechazadas.
+\item El repositorio reproduce el modelado desde el input local, no la creación
+de la etiqueta desde los ficheros mensuales.
+\item La importancia de variables es descriptiva y no causal.
+\item No se ha evaluado transporte a otra cartera, equidad, uso regulatorio,
+seguridad multiusuario ni rendimiento bajo carga.
+\item El producto no estima EAD, LGD, pérdida esperada, precio, provisiones ni
+capital.
+\end{itemize}
 
 \subsection{Líneas futuras priorizadas}
 
-Las mejoras razonables son recalibrar con una cohorte posterior independiente,
-revalidar los cortes de banda, añadir seguimiento futuro cuando las etiquetas
-sean maduras y conservar un manifiesto verificable de los datos fuente. Sólo si
-el objetivo evolucionara a pérdida esperada se añadirían modelos separados de
-EAD y LGD. Esas ampliaciones no son necesarias para defender el producto PD24
-actual.
+La primera mejora es esperar una cohorte posterior completa, madura y no
+observada. Debe aplicarse el bundle sin reabrir previamente la selección y
+compararse AUC, KS y orden de bandas. Esa evidencia indicará si la capacidad de
+ordenación se mantiene fuera del desarrollo reutilizado.
 
-La prioridad no es añadir más algoritmos. Primero debe comprobarse si una
-recalibración corrige el nivel sin degradar el ranking; después, ampliar de forma
-deliberada el rango de prestatarios o rechazar esa población; y finalmente
-repetir la evaluación con cohortes nuevas y maduras. Sólo una necesidad real de
-servicio multiusuario justificaría sustituir el servidor de desarrollo, añadir
-autenticación u operar el producto fuera de un entorno local.
+La segunda mejora es estudiar transporte a otra muestra o cartera con el mismo
+contrato. Sólo si se observa una pérdida material tendría sentido reabrir
+variables, ventanas o parámetros. Añadir modelos sin una necesidad demostrada
+no es una prioridad.
+
+EAD y LGD serían proyectos separados si el objetivo cambiase a pérdida esperada.
+Un despliegue compartido exigiría servidor de producción, autenticación,
+cifrado, registro, monitorización y gobierno. Ninguna de esas ampliaciones debe
+añadirse al producto académico antes de que exista un uso que la justifique.
 
 \clearpage
 \section{Bibliografía y anexos}
-
-La bibliografía distingue las fuentes de datos y condiciones de uso de los
-materiales docentes utilizados para justificar el método.
 
 \renewcommand{\refname}{Bibliografía}
 \begin{thebibliography}{99}
@@ -828,12 +1049,12 @@ Loan-Level Dataset}, versión efectiva de noviembre de 2025.
 
 \bibitem{freddie-overview}
 Freddie Mac.
-\textit{Credit Risk Transfer: Disclosure Guides and Data Resources}.
-\url{https://capitalmarkets.freddiemac.com/crt/resources/disclosure-guides/disclosure-guides-overview}
+\textit{Single-Family Loan-Level Dataset}.
+\url{https://www.freddiemac.com/research/datasets/sf-loanlevel-dataset}
 
 \bibitem{guia-tfm}
 Universidad Complutense de Madrid.
-\textit{Guía para el Trabajo Fin de Máster -- Data Science, Big Data \
+\textit{Guía para el Trabajo Fin de Máster -- Data Science, Big Data \&
 Business Analytics}, material docente del máster.
 
 \bibitem{data-prep}
@@ -858,442 +1079,187 @@ Universidad Complutense de Madrid.
 
 \bibitem{productivizacion}
 Universidad Complutense de Madrid.
-\textit{Productivizar modelos con Python}, material docente del máster.
+\textit{00\_UCM\_BigData\_Productivizar\_Modelos\_v1}, material docente del
+máster.
 
-\bibitem{gradio}
+\bibitem{spark}
 Universidad Complutense de Madrid.
-\textit{Slides Machine Learning con Python, semanas 3--4}, p.~17,
-material docente del máster.
+\textit{doc\_Spark}, material docente del máster.
 
-\bibitem{saito}
-Saito, T. y Rehmsmeier, M. (2015).
-\textit{The Precision-Recall Plot Is More Informative than the ROC Plot When
-Evaluating Binary Classifiers on Imbalanced Datasets}.
-PLOS ONE, 10(3), e0118432.
-\url{https://doi.org/10.1371/journal.pone.0118432}
+\bibitem{ml-semanas}
+Universidad Complutense de Madrid.
+\textit{slides\_ml\_python-25-26-semana3-4}, material docente del máster.
 
-\bibitem{brier}
-Brier, G. W. (1950).
-\textit{Verification of Forecasts Expressed in Terms of Probability}.
-Monthly Weather Review, 78(1), 1--3.
+\bibitem{intro-dl}
+Universidad Complutense de Madrid.
+\textit{Intro DL}, material docente del máster.
+
+\bibitem{huang-yang-2024}
+Huang, C. y Yang, Y. (2024).
+\textit{Time Series Feature Redundancy Paradox: An Empirical Study Based on
+Mortgage Default Prediction}. arXiv:2501.00034v1 [q-fin.ST].
+\url{https://doi.org/10.48550/arXiv.2501.00034}
 
 \end{thebibliography}
 
-\clearpage
-
-\subsection{Anexo A: diccionario de variables}
-
-\begin{center}\small
-\begin{tabular}{p{0.27\linewidth} p{0.18\linewidth} p{0.46\linewidth}}
-\textbf{Campo} & \textbf{Tipo/rango API} & \textbf{Significado}\\ \hline
-\texttt{origination\_fico} & número, 430--844 & puntuación FICO en originación\\
-\texttt{original\_dti} & número, 1--64 & ratio deuda/ingresos original\\
-\texttt{original\_cltv} & número, 2--200 & ratio préstamo/valor combinado original\\
-\texttt{original\_interest\_rate} & número, 2,25--8,70 & tipo de interés original, en porcentaje\\
-\texttt{number\_of\_borrowers} & número, 1--2 & número de prestatarios aceptado por el bundle\\
-\texttt{cohort\_year} & entero, 2004--2023 & cohorte anual de originación\\
-\texttt{cohort\_quarter} & entero, 1--4 & trimestre de originación\\
-\texttt{pd\_label\_available\_date} & fecha & primera fecha de madurez de la etiqueta\\
-\texttt{default\_24m} & 0/1 & evento de impago dentro de 24 meses\\
-\end{tabular}
-\end{center}
-
-Los rangos API son los congelados por el bundle final, no los extremos de todo
-el compacto. En los datos, FICO abarca 300--850, DTI 1--65, CLTV 2--200, tipo
-1,75--9,875 y prestatarios 1--5.
+El artículo de Huang y Yang se conserva sólo como motivación externa para
+preguntar si más historia y más variables mejoran el modelo. No determina la
+metodología ni el resultado del TFM; su target y sus variables mensuales no son
+los de PD24. Las técnicas implementadas proceden de los materiales del máster.
 
 \clearpage
-\subsection{Anexo B: calidad del dato y EDA ampliado}
+\subsection{Anexo A: diccionario del contrato final}
 
 \begin{center}\small
-\begin{tabular}{l r r r r}
-\textbf{Variable} & \textbf{Ausentes} & \textbf{Porcentaje} & \textbf{Mínimo} & \textbf{Máximo}\\ \hline
-FICO & 338 & 0,034\% & 300 & 850\\
-DTI & 89.077 & 8,908\% & 1 & 65\\
-CLTV & 30 & 0,003\% & 2 & 200\\
-Tipo de interés & 0 & 0,000\% & 1,75 & 9,875\\
-Número de prestatarios & 107 & 0,011\% & 1 & 5\\
+\begin{tabular}{p{0.32\linewidth} p{0.16\linewidth} p{0.42\linewidth}}
+\textbf{Campo} & \textbf{Tipo} & \textbf{Significado}\\ \hline
+\texttt{origination\_fico} & numérica & puntuación FICO en la originación\\
+\texttt{original\_dti} & numérica & relación deuda-ingresos original\\
+\texttt{original\_cltv} & numérica & financiación total sobre el valor de la garantía\\
+\texttt{original\_interest\_rate} & numérica & tipo de interés original\\
+\texttt{number\_of\_borrowers} & numérica & número de prestatarios\\
+\texttt{default\_24m} & binario & evento durante los 24 meses posteriores al primer pago\\
 \end{tabular}
 \end{center}
 
-Los años 2004--2021 contienen 50.000 registros cada uno; 2022 contiene 49.999
-y 2023, 49.966. Los trimestres contienen entre 12.483 y 12.500 registros. La
-etiqueta no tiene ausencias y sólo toma los valores cero y uno. Estos controles
-describen coherencia estructural; no descartan errores de origen ni convierten
-la muestra en representativa de otra población.
-
-La distribución anual de la etiqueta confirma que el problema no es
-estacionario. La tasa total de 1,515\% no sustituye estas tasas por cohorte:
-
-\begin{center}\small
-\begin{tabular}{r r r r@{\hspace{0.07\linewidth}}r r r r}
-\textbf{Año} & \textbf{n} & \textbf{Eventos} & \textbf{Tasa} &
-\textbf{Año} & \textbf{n} & \textbf{Eventos} & \textbf{Tasa}\\ \hline
-2004 & 50.000 & 341 & 0,682\% & 2014 & 50.000 & 247 & 0,494\%\\
-2005 & 50.000 & 462 & 0,924\% & 2015 & 50.000 & 190 & 0,380\%\\
-2006 & 50.000 & 941 & 1,882\% & 2016 & 50.000 & 333 & 0,666\%\\
-2007 & 50.000 & 2.413 & 4,826\% & 2017 & 50.000 & 375 & 0,750\%\\
-2008 & 50.000 & 1.910 & 3,820\% & 2018 & 50.000 & 1.330 & 2,660\%\\
-2009 & 50.000 & 315 & 0,630\% & 2019 & 50.000 & 2.214 & 4,428\%\\
-2010 & 50.000 & 287 & 0,574\% & 2020 & 50.000 & 776 & 1,552\%\\
-2011 & 50.000 & 300 & 0,600\% & 2021 & 50.000 & 431 & 0,862\%\\
-2012 & 50.000 & 260 & 0,520\% & 2022 & 49.999 & 935 & 1,870\%\\
-2013 & 50.000 & 237 & 0,474\% & 2023 & 49.966 & 857 & 1,715\%\\
-\end{tabular}
-\end{center}
-
-El principal riesgo de completitud es temporal. DTI tiene 73.031 ausencias en
-2010--2015 (24,344\%), 4.279 en 2016--2017 (4,279\%), 583 en 2018--2022
-(0,233\%) y 3 en 2023 (0,006\%). En desarrollo, las filas sin DTI concentran
-974 de los 1.521 eventos y una tasa de 1,334\%, frente a 0,241\% cuando DTI está
-presente. El indicador de ausencia evita ocultar este patrón, aunque no permite
-interpretarlo como causa.
-
-\begin{center}\small
-\begin{tabular}{l r r p{0.33\linewidth}}
-\textbf{Variable} & \textbf{Tasa Q1} & \textbf{Tasa Q5} & \textbf{Lectura descriptiva}\\ \hline
-FICO & 1,447\% & 0,102\% & Menor riesgo al aumentar\\
-DTI & 0,069\% & 0,458\% & Mayor riesgo al aumentar\\
-CLTV & 0,162\% & 1,563\% & Concentración en el tramo alto\\
-Tipo de interés & 0,143\% & 1,268\% & Gradiente creciente\\
-Prestatarios & 0,746\% (uno) & 0,322\% (dos) & Diferencia entre categorías vistas\\
-\end{tabular}
-\end{center}
-
-Los cuantiles conservan juntos los empates; por eso no contienen exactamente el
-mismo número de filas. Desarrollo sólo observa uno o dos prestatarios, mientras
-que 3.148 registros del compacto completo tienen tres a cinco. También hay
-1.455 filas adicionales idénticas en los nueve campos. Sin un identificador no
-se puede probar que sean préstamos duplicados, por lo que se mantienen y se
-declara la limitación.
+El orden público queda congelado en \path{src/pd_model.py}. Los límites no se
+duplican en la memoria: se calculan sobre desarrollo, se guardan en el esquema
+del bundle y los aplica la función compartida.
 
 \clearpage
-\subsection{Anexo C: evidencia comparativa y métricas ampliadas}
+\subsection{Anexo B: inventario de candidatas}
 
 \begin{center}\small
-\begin{tabular}{c r r r}
-\textbf{Fold} & \textbf{AUC logística 5} & \textbf{AUC logística 18} & \textbf{Delta 18--5}\\ \hline
-2015 & 0,846504 & 0,815153 & -0,031352\\
-2016 & 0,790192 & 0,790985 & 0,000793\\
-2017 & 0,808500 & 0,794810 & -0,013689\\
+\begin{tabular}{p{0.34\linewidth} p{0.20\linewidth} p{0.35\linewidth}}
+\textbf{Variable} & \textbf{Tratamiento} & \textbf{Lectura en el TFM}\\ \hline
+FICO & numérica & seleccionada; señal crediticia\\
+Número de prestatarios & numérica & seleccionada; estructura del préstamo\\
+Tipo de interés original & numérica & seleccionada; condiciones iniciales\\
+CLTV original & numérica & seleccionada; apalancamiento total\\
+DTI original & numérica & seleccionada; carga financiera\\
+Porcentaje de seguro & numérica & no incluida; mejora conjunta marginal\\
+Número de unidades & categórica & no incluida; mejora conjunta marginal\\
+Amortización & constante & excluida de las candidatas; sólo comparador de 18\\
+LTV original & numérica & no incluida; relacionada con CLTV\\
+Alto saldo & categórica & no incluida; mejora conjunta marginal\\
+Estado & categórica & no incluida; evita ampliar el contrato\\
+Tipo de inmueble & categórica & no incluida; mejora conjunta marginal\\
+Ocupación & categórica & no incluida; mejora conjunta marginal\\
+Plazo original & numérica & no incluida; mejora conjunta marginal\\
+Saldo original & numérica & no incluida; mejora conjunta marginal\\
+Primer comprador & categórica & no incluida; mejora conjunta marginal\\
+Finalidad & categórica & no incluida; mejora conjunta marginal\\
+Tipo de seguro & derivada & sólo comparador histórico de 18\\
 \end{tabular}
 \end{center}
 
-Los deltas se calcularon con la precisión completa y se redondearon después;
-por eso pueden diferir una unidad en el sexto decimal de la resta mostrada.
+Las dos columnas no elegibles no se declaran inútiles en cualquier contexto:
+simplemente no añaden información independiente a este fichero. Amortización es
+constante y el tipo de seguro se obtiene ya del porcentaje de seguro.
+
+\clearpage
+\subsection{Anexo C: especificación experimental}
 
 \begin{center}\small
-\begin{tabular}{l r r r}
-\textbf{Modelo, cinco variables} & \textbf{AUC macro} & \textbf{Brier} & \textbf{log-loss}\\ \hline
-Regresión logística & 0,815065 & 0,005930 & 0,033673\\
-HistGradientBoosting & 0,800760 & 0,005888 & 0,033005\\
-\end{tabular}
-\end{center}
-
-La ablación elimina una entrada cada vez y vuelve a calcular la comparación
-histórica. La peor pérdida corresponde a FICO; las restantes aportaciones son
-menores, pero ninguna retirada mejora simultáneamente la explicación y todas las
-métricas:
-
-\begin{center}\small
-\begin{tabular}{l r r r r}
-\textbf{Contrato logístico} & \textbf{AUC macro} & \textbf{Peor AUC} & \textbf{Brier} & \textbf{log-loss}\\ \hline
-Cinco entradas & 0,815065 & 0,790192 & 0,005930 & 0,033673\\
-Sin FICO & 0,747310 & 0,722554 & 0,005945 & 0,035808\\
-Sin DTI & 0,806267 & 0,777551 & 0,005929 & 0,033547\\
-Sin CLTV & 0,806326 & 0,780619 & 0,005912 & 0,033484\\
-Sin tipo & 0,807096 & 0,790314 & 0,005964 & 0,033582\\
-Sin prestatarios & 0,796718 & 0,779753 & 0,005932 & 0,034281\\
-\end{tabular}
-\end{center}
-
-El estimador base tiene ocho coeficientes por los indicadores de ausencia. Los
-valores siguientes proceden del bundle final y actúan antes del calibrador:
-
-\begin{center}\small
-\begin{tabular}{l r@{\hspace{0.08\linewidth}}l r}
-\textbf{Columna interna} & \textbf{Coef.} & \textbf{Columna interna} & \textbf{Coef.}\\ \hline
-FICO & -0,774665 & Tipo de interés & 0,470748\\
-DTI & 0,368087 & N.º de prestatarios & -0,498650\\
-CLTV & 0,517045 & FICO ausente & -0,027721\\
-DTI ausente & 0,410897 & CLTV ausente & -0,010043\\
-\end{tabular}
-\end{center}
-
-El intercepto del estimador balanceado es -1,214195. La sigmoide posterior usa
-intercepto -4,501601 y pendiente 0,823801 sobre el logit bruto. Estos parámetros
-no son los diagnósticos de calibración por año: aquellos se estiman de nuevo
-sólo para medir el ajuste de las predicciones congeladas frente a cada cohorte.
-
-El detalle trimestral del holdout confirma que el agregado anual no depende de
-un único trimestre:
-
-\begin{center}\small
-\begin{tabular}{c r r r r r}
-\textbf{2023} & \textbf{n} & \textbf{eventos} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{KS}\\ \hline
-T1 & 12.498 & 243 & 0,771361 & 0,068110 & 0,403266\\
-T2 & 12.498 & 199 & 0,773973 & 0,054005 & 0,406077\\
-T3 & 12.487 & 195 & 0,778320 & 0,066435 & 0,417405\\
-T4 & 12.483 & 220 & 0,800073 & 0,071975 & 0,463809\\
-\end{tabular}
-\end{center}
-
-\begin{center}\small
-\begin{tabular}{c r r r r}
-\textbf{2023} & \textbf{Brier} & \textbf{log-loss} & \textbf{intercepto} & \textbf{pendiente}\\ \hline
-T1 & 0,018744 & 0,088490 & -0,097385 & 1,110451\\
-T2 & 0,015764 & 0,078214 & -0,434050 & 1,084830\\
-T3 & 0,015884 & 0,081085 & -0,589214 & 1,125616\\
-T4 & 0,018477 & 0,092370 & -0,572910 & 1,214421\\
+\begin{tabular}{p{0.36\linewidth} p{0.52\linewidth}}
+\textbf{Elemento} & \textbf{Valor}\\ \hline
+Input & \DataFile{}\\
+Población fuente & \SourceLoans{} filas / \SourceEvents{} eventos\\
+Población modelada & \ModelLoans{} filas / \ModelEvents{} eventos\\
+Exclusión común & 3.518 filas sin enlace unívoco para campos ampliados\\
+Variables históricas / independientes & 18 / 16\\
+Ruta & selección secuencial en 2017, congelada para la reproducción\\
+Ventanas & 1, 3, 5 y expansiva\\
+Selección & auditoría previa de ajuste y ventana; 16 prefijos y seis familias en el cuaderno\\
+Años de selección & 2018, 2019, 2021 y 2022\\
+Estrés & 2020, excluido de la elección\\
+Evaluación & 2023, reutilizada y no virgen\\
+Contrato final & \SelectedK{}: \SelectedFeatures{}\\
+Ventana final & \SelectedWindow{} años\\
+Familia & \SelectedFamily{}\\
+XGBoost & \XGBTrees{} árboles / tasa \XGBRate{} / profundidad \XGBDepth{}\\
+Criterio & AUC medio; después peor AUC; después KS, sin redondear\\
+Producto & mismo modelo de 2023: desarrollo \DevelopmentPeriod{}; bandas \BandPeriod{}\\
+Identidad & \ModelVersion{}, bundle versión \BundleVersion{}\\
 \end{tabular}
 \end{center}
 
 \clearpage
-\subsection{Anexo D: contrato técnico y reproducción}
+\subsection{Anexo D: fragmentos esenciales}
 
-El input local requerido es \texttt{freddie-pd24.csv.zst}. Con Python 3.12.13
-y las versiones fijadas en \texttt{requirements.lock}, los comandos mínimos son:
+\textbf{Pipeline mínimo} (\path{src/pd_model.py})
 
-{\scriptsize\begin{verbatim}
-python -m scripts.train_model --data freddie-pd24.csv.zst --output models\pd24-model.joblib
-python -m unittest discover -s tests -v
-python -m scripts.serve_demo --model models\pd24-model.joblib --port 7860
-python -m scripts.serve_model --model models\pd24-model.joblib --port 5000
+{\scriptsize
+\begin{verbatim}
+preprocessor = ColumnTransformer([
+    ("numeric", SimpleImputer(strategy="median"),
+     list(PRODUCT_FEATURES)),
+], sparse_threshold=0.0)
+model = Pipeline([
+    ("preprocessor", preprocessor),
+    ("classifier", XGBClassifier(
+        n_estimators=100, learning_rate=0.1,
+        max_depth=2, n_jobs=1, random_state=20260831,
+    )),
+])
 \end{verbatim}}
 
-\path{README.md} incluye las llamadas exactas a la interfaz, salud, predicción y
-reevaluación anual. Los puntos de entrada son pequeños:
-\path{scripts/train_model.py}, \path{scripts/serve_demo.py} y
-\path{scripts/serve_model.py}; la lógica común permanece en
-\path{src/product.py}.
+El notebook contiene los preprocesamientos necesarios para comparar las seis
+familias. Una vez cerrada la selección, el runtime conserva sólo las cinco
+entradas numéricas, la imputación por mediana y XGBoost; no mantiene código para
+volver a seleccionar modelos.
 
-\begin{center}\small
-\begin{tabular}{p{0.25\linewidth} p{0.64\linewidth}}
-\textbf{Elemento} & \textbf{Condición reproducible}\\ \hline
-Input & \texttt{freddie-pd24.csv.zst}, hash \texttt{33f69d...fb91}\\
-Entorno & Python 3.12.13 y dependencias de \texttt{requirements.lock}\\
-Entrenamiento & Desarrollo 2010--2015 y calibración 2016--2017\\
-Artefacto & \texttt{models/pd24-model.joblib}, identidad interna \texttt{five-variable-pd-2}\\
-API & Contrato público \texttt{pd24-v1}, sólo loopback\\
-Interfaz & Gradio en \texttt{127.0.0.1:7860}, cinco entradas y tres salidas\\
-Comprobación & 34 tests y reevaluación permitida para 2018--2022 o 2023\\
-\end{tabular}
-\end{center}
+\textbf{Bundle reducido} (\path{src/product.py})
 
-El endpoint de salud se comprueba con
-\texttt{Invoke-RestMethod http://127.0.0.1:5000/health}. Debe responder
-\texttt{status=ok}, \texttt{model\_version=pd24-v1} y horizonte 24. La raíz
-\texttt{/} de Flask devuelve 404 porque no pertenece al contrato. La raíz de
-Gradio en el puerto 7860 sí muestra el formulario de demostración.
-
-El compacto es el único fichero de datos que consumen los modelos. No se entrega
-código de descarga, descompresión de zips originales, unión mensual o creación
-de la etiqueta. Esta simplificación hace que el entrenamiento final sea breve y
-auditable, a cambio de no poder reconstruir el compacto desde los ficheros
-fuente dentro del repositorio. Compacto, bundle y memoria PDF permanecen como
-artefactos locales; el repositorio no redistribuye datos Freddie Mac.
-
-\clearpage
-\subsection{Anexo E: fragmentos esenciales del código}
-
-Los siguientes extractos muestran la lógica que se defiende. Se omiten imports,
-mensajes repetidos y algunas líneas de validación; el código completo permanece
-en los ficheros citados.
-
-\textbf{E.1. Entradas, pipeline y calibración} (\path{src/pd_model.py})
-
-{\scriptsize\begin{verbatim}
-PRODUCT_FEATURES = (
-    "origination_fico",
-    "original_dti",
-    "original_cltv",
-    "original_interest_rate",
-    "number_of_borrowers",
-)
-
-def _logistic(seed):
-    return Pipeline([
-        ("imputer", SimpleImputer(
-            strategy="median",
-            add_indicator=True,
-            keep_empty_features=True,
-        )),
-        ("scaler", StandardScaler()),
-        ("classifier", LogisticRegression(
-            C=1.0,
-            class_weight="balanced",
-            max_iter=500,
-            random_state=seed,
-            solver="lbfgs",
-        )),
-    ])
-
-estimator.fit(
-    development[list(PRODUCT_FEATURES)],
-    development["default_24m"],
-)
-raw = estimator.predict_proba(
-    calibration[list(PRODUCT_FEATURES)]
-)[:, 1]
-calibrator = LogisticRegression(
-    C=1e6, solver="lbfgs", random_state=seed
-).fit(
-    SigmoidCalibratedModel._logit(raw),
-    calibration["default_24m"],
-)
-\end{verbatim}}
-
-\texttt{SigmoidCalibratedModel.predict\_proba} obtiene primero la probabilidad
-del pipeline base, la transforma a logit y aplica el calibrador. Finalmente
-devuelve dos columnas, $1-p$ y $p$, como exige la interfaz habitual de
-scikit-learn.
-
-\clearpage
-\textbf{E.2. Construcción y persistencia del producto}
-(\path{src/product.py})
-
-{\scriptsize\begin{verbatim}
-frame, data_sha256 = _fit_frame(path, chunksize)
-development = frame.loc[
-    frame["cohort_year"].isin(REFERENCE_DEVELOPMENT_YEARS)
-]
-calibration = frame.loc[
-    frame["cohort_year"].isin(REFERENCE_CALIBRATION_YEARS)
-]
-model = fit_calibrated_model(development, calibration)
-calibration_probability = model.predict_proba(
-    calibration[list(PRODUCT_FEATURES)]
-)[:, 1]
-cutoffs = risk_band_cutoffs(calibration_probability)
-
+{\scriptsize
+\begin{verbatim}
 bundle = {
     "bundle_version": BUNDLE_VERSION,
     "model_version": MODEL_VERSION,
     "model": model,
-    "family": "logistic",
+    "family": "xgboost",
     "features": list(PRODUCT_FEATURES),
-    "input_schema": _input_schema(development),
-    "target": TARGET,
-    "horizon_months": HORIZON_MONTHS,
-    "periods": {
-        "development_years": list(REFERENCE_DEVELOPMENT_YEARS),
-        "calibration_years": list(REFERENCE_CALIBRATION_YEARS),
-        "fit_label_cutoff": FIT_LABEL_CUTOFF.isoformat(),
-    },
-    "risk_band_cutoffs": [float(cutoffs[0]), float(cutoffs[1])],
+    "input_schema": input_schema,
+    "target": "default_24m",
+    "horizon_months": 24,
+    "event_definition": event_definition,
+    "periods": periods,
+    "risk_band_cutoffs": cutoffs,
     "data_sha256": data_sha256,
-    "implementation_sha256": implementation_sha256,
-    # métricas y distribuciones de referencia también se guardan
 }
 \end{verbatim}}
 
-El bundle real exige exactamente las 18 claves descritas en la sección 7. El
-comentario del extracto sustituye las entradas de métricas y PSI sólo para no
-repetir código sin valor explicativo.
+\textbf{Scoring compartido} (\path{src/product.py})
 
-{\scriptsize\begin{verbatim}
-target = Path(path)
-target.parent.mkdir(parents=True, exist_ok=True)
-temporary = target.with_suffix(target.suffix + ".partial")
-try:
-    joblib.dump(bundle, temporary)
-    os.replace(temporary, target)
-finally:
-    if temporary.exists():
-        temporary.unlink()
+{\scriptsize
+\begin{verbatim}
+score = float(bundle["model"].predict_proba(
+    pd.DataFrame([payload], columns=features)
+)[0, 1])
+p50, p90 = bundle["risk_band_cutoffs"]
+band = "low" if score < p50 else "medium" if score < p90 else "high"
 \end{verbatim}}
 
-\clearpage
-\textbf{E.3. Validación y scoring compartido} (\path{src/product.py})
+La validación de contrato, tipos, finitud, rangos y bundle ocurre antes de estas
+líneas. Flask y Gradio presentan el resultado, pero no recalculan el modelo.
 
-{\scriptsize\begin{verbatim}
-def score_product(bundle, payload):
-    features = bundle["features"]
-    if (not isinstance(features, list)
-            or not isinstance(payload, Mapping)
-            or set(payload) != set(features)):
-        raise ValueError("invalid input")
-    schema = bundle["input_schema"]
-    for name in features:
-        value = payload[name]
-        if (type(value) not in (int, float)
-                or (type(value) is float
-                    and not math.isfinite(value))):
-            raise ValueError("invalid input")
-        limits = schema[name]
-        if value < limits["minimum"] or value > limits["maximum"]:
-            raise ValueError("invalid input")
-    frame = pd.DataFrame([payload], columns=features)
-    score = float(bundle["model"].predict_proba(frame)[0, 1])
-    if not math.isfinite(score) or not 0 <= score <= 1:
-        raise RuntimeError("model returned an invalid probability")
-    p50, p90 = bundle["risk_band_cutoffs"]
-    band = (
-        "low" if score < p50
-        else "medium" if score < p90
-        else "high"
-    )
-    return score, band
-\end{verbatim}}
-
-Los adaptadores se limitan a presentar el mismo resultado:
-
-{\scriptsize\begin{verbatim}
-# src/api.py
-score, band = score_product(bundle, payload)
-
-# scripts/serve_demo.py
-return gr.Interface(
-    fn=lambda fico, dti, cltv, rate, borrowers:
-        predict_loan(bundle, fico, dti, cltv, rate, borrowers),
-    inputs=[
-        number("origination_fico", "FICO de originación", 700, 1),
-        number("original_dti", "DTI original (%)", 30, 1),
-        number("original_cltv", "CLTV original (%)", 80, 1),
-        number("original_interest_rate",
-               "Tipo de interés original (%)", 4.5, 0.01),
-        number("number_of_borrowers", "Número de prestatarios", 2, 1),
-    ],
-    outputs=[
-        gr.Number(label="PD a 24 meses (%)", precision=4),
-        gr.Textbox(label="Banda de riesgo"),
-        gr.Textbox(label="Alcance"),
-    ],
-)
-\end{verbatim}}
-
-El auxiliar \texttt{number} toma los rangos del bundle y crea cada
-\texttt{gr.Number}; \texttt{predict\_loan} delega en
-\texttt{score\_product} y convierte la PD a porcentaje. Las dos fronteras
-transforman los errores en mensajes genéricos y no exponen detalles internos.
-
-\clearpage
-\subsection{Anexo F: catálogo de pruebas}
-
-La suite usa \texttt{unittest} y contiene 34 métodos. Los casos parametrizados
-internamente con \texttt{subTest} no se cuentan como tests adicionales.
+\subsection{Anexo E: guía de defensa}
 
 \begin{center}\small
-\begin{tabular}{p{0.23\linewidth} r p{0.57\linewidth}}
-\textbf{Área} & \textbf{N.º} & \textbf{Comportamientos comprobados}\\ \hline
-API & 9 & Salud, respuesta exacta, bordes P50/P90, MIME, tamaño, JSON duplicado/profundo, payloads inválidos, fallo de modelo y únicas rutas\\
-Acceso a datos & 6 & Camino válido, hash temprano, cabecera exacta, target/madurez, trimestre/tope/rangos y aislamiento de años no seleccionados\\
-Métricas & 6 & Superficie probabilística, clase única, bandas, PSI, resumen anual y regla pareada histórica\\
-Modelo & 1 & Uso exclusivo de cinco entradas y probabilidades válidas\\
-Producto & 8 & Periodos de ajuste, corte de etiqueta, prohibición de leer futuro, bundle/hashes/atomicidad, evaluación y determinismo\\
-Interfaz & 4 & PD y banda, orden, valores inválidos, fallo interno y cinco entradas/tres salidas\\
-\textbf{Total} & \textbf{34} & \textbf{Lectura, modelo, artefacto, evaluación, API e interfaz}\\
+\begin{tabular}{p{0.31\linewidth} p{0.58\linewidth}}
+\textbf{Pregunta} & \textbf{Respuesta acotada}\\ \hline
+¿Por qué 24 meses? & Es el horizonte fijo de la etiqueta y permite observar el mismo periodo para todos los préstamos.\\
+¿Por qué no usar 2020 para elegir? & Es un periodo excepcional; se conserva como estrés para no ocultar su comportamiento.\\
+¿Por qué \SelectedK{} variables? & Dieciséis maximizan el AUC, pero sólo añaden \DeltaFiveAUC{} de AUC medio y \DeltaFiveWorst{} en el peor año. Cinco reducen once entradas por una pérdida marginal.\\
+¿Por qué \SelectedFamily{}? & Gana entre seis estimadores evaluados con el mismo contrato y periodos por AUC medio, peor AUC anual y KS sin redondeo.\\
+¿Qué significa el score? & Orden relativo del evento definido en la población estudiada; no es una decisión de crédito.\\
+¿Por qué no EAD y LGD? & Responden a exposición y severidad, no a la clasificación binaria planteada.\\
+¿Es producción real? & Es un producto local reproducible con validación de entrada; no es un servicio multiusuario.\\
+¿Cuál es la principal mejora futura? & Evaluar una cohorte posterior madura y completamente no observada.\\
 \end{tabular}
 \end{center}
 
-La suite verifica que 2018--2023 no se lean durante el ajuste, que 2023 no se
-mezcle con otros años y que el artefacto previo sobreviva a un fallo de
-escritura. También rechaza bundles con identidad, esquema, periodos, métricas,
-distribuciones o hashes incompatibles.
-
-No se cubren argumentos de los tres scripts mediante subprocess, tráfico por un
-socket real, concurrencia, carga, TLS o autenticación. Son límites coherentes
-con un producto académico local; sólo deberían añadirse si el caso de uso
-evoluciona a un servicio compartido.
+La defensa debe seguir el mismo orden que la memoria: problema, evidencia,
+modelo, producto y límites. Ninguna métrica sustituye a la delimitación del uso.
 
 \end{document}

@@ -5,8 +5,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-import src.pd_model as pd_model
-from src.pd_model import PRODUCT_FEATURES, fit_calibrated_model
+from src import pd_model
+from src.pd_model import PRODUCT_FEATURES, fit_model
 
 
 class PDModelTests(unittest.TestCase):
@@ -26,16 +26,21 @@ class PDModelTests(unittest.TestCase):
         frame["not_a_product_input"] = rng.normal(size=rows)
         return frame
 
-    def test_fit_calibrated_model_uses_only_the_frozen_five_features(self) -> None:
+    def test_fit_model_uses_only_the_frozen_features(self) -> None:
         development = self._sample(1, 80)
-        calibration = self._sample(2, 40)
 
-        fitted = fit_calibrated_model(development, calibration)
-        probability = fitted.predict_proba(calibration[list(PRODUCT_FEATURES)])[:, 1]
+        fitted = fit_model(development)
+        probability = fitted.predict_proba(development[list(PRODUCT_FEATURES)])[:, 1]
 
         self.assertTrue(np.isfinite(probability).all())
         self.assertTrue(((probability >= 0) & (probability <= 1)).all())
+        classifier = fitted.named_steps["classifier"]
+        self.assertEqual(classifier.n_estimators, 100)
+        self.assertEqual(classifier.max_depth, 2)
+        self.assertEqual(classifier.learning_rate, 0.1)
         self.assertFalse(hasattr(pd_model, "train_and_select"))
+        with self.assertRaisesRegex(ValueError, "binary outcomes"):
+            fit_model(development.assign(default_24m=development["default_24m"] * 2))
 
 
 if __name__ == "__main__":

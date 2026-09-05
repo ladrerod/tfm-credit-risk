@@ -8,8 +8,6 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from .product import load_bundle, score_product
 
-
-PUBLIC_MODEL_VERSION = "pd24-v1"
 ACADEMIC_WARNING = "Academic risk estimate; not a credit decision."
 
 
@@ -37,7 +35,7 @@ def create_app(bundle_path: str | Path) -> Flask:
     def health():
         return jsonify(
             status="ok",
-            model_version=PUBLIC_MODEL_VERSION,
+            model_version=bundle["model_version"],
             horizon_months=bundle["horizon_months"],
         )
 
@@ -46,19 +44,24 @@ def create_app(bundle_path: str | Path) -> Flask:
         if request.mimetype != "application/json":
             return invalid_request()
         try:
-            payload = json.loads(request.get_data(cache=False), object_pairs_hook=_unique_json_object)
-        except (json.JSONDecodeError, UnicodeDecodeError, ValueError, RecursionError, RequestEntityTooLarge):
-            return invalid_request()
-        try:
+            payload = json.loads(
+                request.get_data(cache=False), object_pairs_hook=_unique_json_object
+            )
             score, band = score_product(bundle, payload)
-        except ValueError:
+        except (
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+            ValueError,
+            RecursionError,
+            RequestEntityTooLarge,
+        ):
             return invalid_request()
-        except Exception:
+        except Exception:  # noqa: BLE001 - the API must not expose model internals
             return internal_error()
         return jsonify(
             risk_score=score,
             risk_band=band,
-            model_version=PUBLIC_MODEL_VERSION,
+            model_version=bundle["model_version"],
             horizon_months=bundle["horizon_months"],
             warning=ACADEMIC_WARNING,
         )

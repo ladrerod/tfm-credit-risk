@@ -3,6 +3,7 @@
 .private/
 .venv/
 __pycache__/
+.ipynb_checkpoints/
 *.py[cod]
 data/
 outputs/

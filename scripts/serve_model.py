@@ -6,7 +6,7 @@ from src.api import create_app
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Serve the five-variable PD product model.")
+    parser = argparse.ArgumentParser(description="Serve the PD24 product model.")
     parser.add_argument("--model", required=True)
     parser.add_argument("--port", type=int, default=5000)
     args = parser.parse_args()
